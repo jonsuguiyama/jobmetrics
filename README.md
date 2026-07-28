@@ -1,4 +1,4 @@
-# vaga-match
+# jobmetrics
 
 Upload your resume, search real developer job postings from Brazilian tech
 communities, and get a live-updating match score for each one, powered by an
