@@ -17,20 +17,51 @@ export default function Home() {
 
   const [resumeText, setResumeText] = useState("");
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const [isParsingResume, setIsParsingResume] = useState(false);
   const [selectedRepos, setSelectedRepos] = useState<string[]>([JOB_SOURCES[0].id]);
   const [pastedJob, setPastedJob] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobCount, setJobCount] = useState(0);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+
+  async function processResumeFile(file: File) {
+    setError(null);
+    setResumeFileName(file.name);
+    setIsParsingResume(true);
+
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/parse-resume", { method: "POST", body });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Could not read that file");
+        setResumeFileName(null);
+        return;
+      }
+
+      setResumeText(data.text);
+    } catch {
+      setError("Could not reach the server. Try again.");
+      setResumeFileName(null);
+    } finally {
+      setIsParsingResume(false);
+    }
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setResumeFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => setResumeText(String(reader.result ?? ""));
-    reader.readAsText(file);
+    if (file) processResumeFile(file);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processResumeFile(file);
   }
 
   function toggleRepo(id: string) {
@@ -83,15 +114,35 @@ export default function Home() {
 
   const canSearch = resumeText.trim().length > 0 && (selectedRepos.length > 0 || pastedJob.trim().length > 0);
 
+  let uploadLabel = "Click to upload or drop your resume here";
+  if (isParsingResume) uploadLabel = "Reading your resume...";
+  else if (resumeFileName) uploadLabel = `Loaded: ${resumeFileName}`;
+
   return (
     <div className="flex flex-col gap-8">
       <section className="rounded-xl border border-border bg-surface p-6">
         <h2 className="mb-4 text-lg font-semibold">1. Your resume</h2>
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-surface-2 px-6 py-10 text-center transition-colors hover:border-accent">
-          <span className="text-sm text-muted">
-            {resumeFileName ? `Loaded: ${resumeFileName}` : "Click to upload a .txt resume"}
-          </span>
-          <input type="file" accept=".txt,text/plain" onChange={handleFileChange} className="hidden" />
+        <label
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(true);
+          }}
+          onDragLeave={() => setIsDraggingFile(false)}
+          onDrop={handleDrop}
+          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-6 py-10 text-center transition-colors ${
+            isDraggingFile ? "border-accent bg-surface-2" : "border-border bg-surface-2 hover:border-accent"
+          }`}
+        >
+          <span className="text-sm text-muted">{uploadLabel}</span>
+          {!resumeFileName && !isParsingResume && (
+            <span className="text-xs text-muted/70">.pdf, .docx, or .txt</span>
+          )}
+          <input
+            type="file"
+            accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+            onChange={handleFileChange}
+            className="hidden"
+          />
         </label>
 
         <h2 className="mb-3 mt-6 text-lg font-semibold">2. Job sources</h2>
