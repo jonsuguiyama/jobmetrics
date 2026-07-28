@@ -1,9 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { JobMessage, JobResult } from "./types.js";
 
-// Gemini 2.5 Flash-Lite has the most generous free-tier daily quota of the
-// available models - see the README's "Google Gemini API" note.
-const MODEL = "gemini-2.5-flash-lite";
+// Google retires/renames specific Gemini model versions over time (verified
+// firsthand: gemini-2.5-flash-lite is already 404ing for new API keys). The
+// "-latest" alias is Google's own moving pointer to whichever lite model is
+// currently available, so this doesn't need to be re-pinned every time a
+// dated model version gets deprecated.
+const MODEL = "gemini-flash-lite-latest";
 
 // Created lazily (not at module load) so importing pure helpers like
 // toJobResult - e.g. from tests - doesn't require config/env vars to be set.
