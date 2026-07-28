@@ -71,15 +71,18 @@ serverless functions intentionally don't do.
 | Piece | Technology | Why |
 |---|---|---|
 | Frontend + API | Next.js on Vercel | Reuses the Auth.js OAuth setup already built for csv-insights |
+| Language | TypeScript | Both `web/` and `worker/` |
+| Styling | Tailwind CSS | Dark theme, single neon-green accent |
 | Auth | GitHub/Google OAuth (Auth.js) | Required to rate-limit usage per person, not just per IP |
 | Database | Neon (Postgres) | Tiny footprint on purpose - see below |
 | Session cache | Upstash Redis | Holds the active resume + in-progress results, auto-expires |
 | Queue | RabbitMQ (CloudAMQP) | Classic competing-consumers task queue - the right tool for "many independent jobs, N workers pulling work" |
-| Worker | Node.js/TypeScript on a GCP e2-micro VM | Always-on process for the queue consumer and WebSocket server |
+| Worker | Node.js/TypeScript on a GCP e2-micro VM (Always Free) | Always-on process for the queue consumer and WebSocket server, kept alive with pm2 |
 | LLM | Google Gemini API (free tier) | Real rate limits on a genuinely free tier, unlike token-metered APIs |
 | Job source | GitHub REST API (Issues) | The only realistic no-paywall, no-partnership source of real BR tech job postings - see below |
 | Live updates | WebSocket | Server pushes each result the moment it's ready, no polling |
-| Analytics | Umami | Cookie-free, privacy-respecting page-view analytics |
+| Analytics | Vercel Analytics | Free on Hobby, no per-account site limit (unlike Umami's free tier) |
+| Testing | Vitest | Unit tests in both `web/` and `worker/` |
 
 ### Why GitHub Issues as the job source
 
