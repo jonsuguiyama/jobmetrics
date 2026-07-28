@@ -28,7 +28,6 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "brace-expansion": "^2.0.2",
     "minimatch": "^10.2.6"
   }
 }
