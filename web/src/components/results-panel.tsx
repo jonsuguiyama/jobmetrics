@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useJobResults } from "@/lib/use-job-results";
 
 // Results now arrive from the worker in one burst (a single Gemini call
@@ -110,7 +111,12 @@ function LiveDuration({ from, until }: { from: number; until: number | null }) {
 
   useEffect(() => {
     if (until !== null) return undefined;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
+    // A plain setState here visibly updated in the background but only
+    // painted once some unrelated state change (e.g. a new WebSocket
+    // message) forced a flush - React was batching/deferring this tick as
+    // low-priority since nothing else demanded it. flushSync forces every
+    // tick to actually paint immediately instead of queuing invisibly.
+    const interval = setInterval(() => flushSync(() => setNow(Date.now())), 1000);
     return () => clearInterval(interval);
   }, [until]);
 

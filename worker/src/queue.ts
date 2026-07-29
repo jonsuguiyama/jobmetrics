@@ -19,7 +19,7 @@ const HEARTBEAT_SECONDS = 10;
 // amqplib gives up on a connection. This actively probes the connection on
 // a short cycle instead of only waiting on that, so a dead connection gets
 // caught and replaced in seconds, not tens of seconds.
-const HEALTH_CHECK_INTERVAL_MS = 15_000;
+const HEALTH_CHECK_INTERVAL_MS = 1_000;
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
 let connection: ChannelModel | undefined;
