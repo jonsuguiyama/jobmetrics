@@ -28,7 +28,12 @@ export function useJobResults(sessionId: string | null) {
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data) as { type: string; result: JobResult };
       if (data.type === "job-result") {
-        setResults((prev) => [...prev, data.result].sort((a, b) => b.score - a.score));
+        // A reconnect can replay a result that already arrived live, so
+        // de-dupe by jobId instead of assuming every message is new.
+        setResults((prev) => {
+          if (prev.some((existing) => existing.jobId === data.result.jobId)) return prev;
+          return [...prev, data.result].sort((a, b) => b.score - a.score);
+        });
       }
     };
 
