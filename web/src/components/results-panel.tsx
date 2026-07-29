@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useJobResults } from "@/lib/use-job-results";
 
 // Results now arrive from the worker in one burst (a single Gemini call
@@ -136,7 +136,8 @@ function LivePipeline({
                 )}
               </span>
               <span className={isCurrent ? "text-foreground" : "text-muted"}>{entry.label}</span>
-              {isCurrent ? <LoadingDots /> : <span className="ml-auto text-xs text-muted">{durationS}s</span>}
+              {isCurrent && <LoadingDots />}
+              <span className="ml-auto text-xs text-muted">{durationS}s</span>
             </li>
           );
         })}
@@ -159,49 +160,10 @@ function LoadingDots({ colorClassName = "bg-accent" }: { colorClassName?: string
   );
 }
 
-type LoadingStep = { text: string; durationMs: number };
-
-// A fake but truthful step-by-step sequence for the ~1-2 minute wait while
-// Gemini scores the batch - grounded in what the pipeline actually does
-// (fetch postings, queue them, call the model), plus a couple of count-up
-// steps using the real job count. Runs once through and holds on the last
-// step instead of looping, so it doesn't read as an obviously fake loop.
-function buildLoadingSteps(jobCount: number): LoadingStep[] {
-  const steps: LoadingStep[] = [{ text: "Fetching job postings...", durationMs: 1200 }];
-
-  for (let n = 1; n <= jobCount; n++) {
-    steps.push({ text: `${n} job${n === 1 ? "" : "s"} found`, durationMs: 120 });
-  }
-
-  steps.push(
-    { text: "Preparing your resume for comparison...", durationMs: 1000 },
-    { text: "Queuing jobs for scoring...", durationMs: 1000 },
-    { text: "Sending the batch to the AI model...", durationMs: 1300 }
-  );
-
-  for (let n = 1; n <= jobCount; n++) {
-    steps.push({ text: `Scoring ${n} job${n === 1 ? "" : "s"}...`, durationMs: 150 });
-  }
-
-  steps.push({ text: "This can take a minute or two - hang tight", durationMs: Number.POSITIVE_INFINITY });
-  return steps;
-}
-
-function LoadingSteps({ jobCount }: { jobCount: number }) {
-  const steps = useMemo(() => buildLoadingSteps(jobCount), [jobCount]);
-  const [stepIndex, setStepIndex] = useState(0);
-
-  useEffect(() => {
-    if (stepIndex >= steps.length - 1) return undefined;
-    const timer = setTimeout(() => setStepIndex((i) => i + 1), steps[stepIndex].durationMs);
-    return () => clearTimeout(timer);
-  }, [stepIndex, steps]);
-
+function WaitingNotice() {
   return (
     <p className="flex items-center gap-1 text-sm text-muted">
-      <span key={stepIndex} className="animate-step-in">
-        {steps[stepIndex].text}
-      </span>
+      This can take a minute or two - hang tight
       <LoadingDots />
     </p>
   );
@@ -296,23 +258,11 @@ function Pagination({
 }
 
 export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCount: number }) {
-  const { results, status, statusLog, firstResultAt } = useJobResults(sessionId);
+  const { results, status, statusLog } = useJobResults(sessionId);
   const [revealedCount, setRevealedCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValue, setFilterValue] = useState<FilterValue>("all");
   const [now, setNow] = useState(() => Date.now());
-  // Captured client-side the moment this search started - persisted per
-  // sessionId so a page refresh restores the real start instead of
-  // resetting it to the moment of the reload.
-  const [searchStartedAt] = useState(() => {
-    if (typeof window === "undefined") return Date.now();
-    const key = `jobmetrics:pipeline:${sessionId}:startedAt`;
-    const stored = sessionStorage.getItem(key);
-    if (stored) return Number(stored);
-    const now = Date.now();
-    sessionStorage.setItem(key, String(now));
-    return now;
-  });
 
   useEffect(() => {
     if (revealedCount >= results.length) return undefined;
@@ -344,18 +294,16 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
   const page = Math.min(currentPage, totalPages);
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // A timeline of every real stage this search has gone through, each
-  // entry's duration measured to the next one (or to "now", live, for
-  // whichever stage is still ongoing).
-  const timeline = [
-    { label: "Search submitted", at: searchStartedAt },
-    ...statusLog.map((s) => ({ label: s.text, at: s.at })),
-    ...(firstResultAt !== null ? [{ label: "First match streamed to your browser", at: firstResultAt }] : [])
-  ];
+  // A timeline of every real stage this search has gone through - entirely
+  // server-sourced (web app + worker), each entry's duration measured to
+  // the next one (or to "now", live, for whichever stage is still ongoing).
+  // Deliberately has no client-clock timestamps mixed in: a client with a
+  // wrong system clock would otherwise throw every duration off.
+  const timeline = statusLog.map((s) => ({ label: s.text, at: s.at }));
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
-      <LivePipeline timeline={timeline} now={now} isComplete={searchDone} />
+      {timeline.length > 0 && <LivePipeline timeline={timeline} now={now} isComplete={searchDone} />}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
@@ -372,7 +320,7 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
         </p>
       )}
 
-      {revealedCount === 0 && <LoadingSteps jobCount={jobCount} />}
+      {revealedCount === 0 && <WaitingNotice />}
 
       {scoring && revealedCount > 0 && (
         <div className="mb-4">

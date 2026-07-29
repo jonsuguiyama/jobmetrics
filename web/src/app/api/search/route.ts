@@ -5,6 +5,7 @@ import { getOrCreateUser } from "@/lib/db";
 import { checkRateLimit, incrementSearchCount, isOwner } from "@/lib/rate-limit";
 import { fetchJobPostings, JOB_SOURCE_REPOS, type JobSourceRepo, type JobPosting } from "@/lib/github-jobs";
 import { publishJobsForScoring } from "@/lib/queue";
+import { savePipelineStatus } from "@/lib/redis";
 
 const MAX_RESUME_CHARS = 20_000;
 const MAX_PASTED_JOB_CHARS = 20_000;
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
     );
   }
 
+  const sessionId = randomUUID();
+
   let jobs: JobPosting[] = [];
   try {
     jobs = repos.length > 0 ? await fetchJobPostings(repos) : [];
@@ -72,13 +75,18 @@ export async function POST(request: Request) {
     ];
   }
 
-  const sessionId = randomUUID();
+  // Real backend checkpoints for the Live Pipeline view - written here (not
+  // just from the worker) so the timeline reflects everything that happens
+  // before the job even reaches RabbitMQ, instead of a client-side stand-in.
+  await savePipelineStatus(sessionId, `Found ${jobs.length} job posting${jobs.length === 1 ? "" : "s"} on GitHub`);
 
   try {
     await publishJobsForScoring(sessionId, resumeText, jobs);
   } catch {
     return NextResponse.json({ error: "Failed to queue jobs for scoring - try again" }, { status: 502 });
   }
+
+  await savePipelineStatus(sessionId, "Queued for scoring via RabbitMQ");
 
   // Only counts against the daily limit once the search actually queued.
   if (!ownerExempt) {

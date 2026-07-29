@@ -1,6 +1,6 @@
 import { WebSocketServer, type WebSocket } from "ws";
 import { config } from "./config.js";
-import { getJobResults, getStatus, saveStatus } from "./redis.js";
+import { getJobResults, getStatusHistory, saveStatus } from "./redis.js";
 import type { JobResult } from "./types.js";
 
 const clientsBySession = new Map<string, Set<WebSocket>>();
@@ -47,11 +47,11 @@ export function startWebSocketServer(): WebSocketServer {
     // RabbitMQ delivers the message, which is almost always faster than
     // this very handshake finishes, so without this replay the live
     // pipeline view would show nothing even after the job completed.
-    getStatus(sessionId)
-      .then((status) => {
-        if (status) sendStatus(socket, status.text, status.at);
+    getStatusHistory(sessionId)
+      .then((statuses) => {
+        for (const status of statuses) sendStatus(socket, status.text, status.at);
       })
-      .catch((error) => console.error(`Failed to replay status for session ${sessionId}:`, error));
+      .catch((error) => console.error(`Failed to replay status history for session ${sessionId}:`, error));
 
     socket.on("close", () => {
       clientsBySession.get(sessionId)?.delete(socket);

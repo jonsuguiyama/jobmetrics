@@ -18,16 +18,16 @@ const RECONNECT_DELAY_MS = 1500;
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting";
 
-// TEMPORARY DEBUG: every status the worker has reported for this session,
-// via worker/src/websocket.ts's broadcastStatus() (replayed from Redis on
-// connect, so a late/reconnecting client still gets the full history).
-export type WorkerStatus = { text: string; at: number };
+// Every pipeline status reported for this session, from both the web app
+// (route.ts) and the worker (websocket.ts's broadcastStatus()) - replayed
+// from Redis on connect, so a late/reconnecting client still gets the full
+// history instead of just whatever happens to be broadcast live.
+export type PipelineStatus = { text: string; at: number };
 
 export function useJobResults(sessionId: string | null) {
   const [results, setResults] = useState<JobResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
-  const [statusLog, setStatusLog] = useState<WorkerStatus[]>([]);
-  const [firstResultAt, setFirstResultAt] = useState<number | null>(null);
+  const [statusLog, setStatusLog] = useState<PipelineStatus[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -64,7 +64,6 @@ export function useJobResults(sessionId: string | null) {
             if (prev.some((existing) => existing.jobId === result.jobId)) return prev;
             return [...prev, result].sort((a, b) => b.score - a.score);
           });
-          setFirstResultAt((prev) => prev ?? Date.now());
         } else if (data.type === "status" && data.status) {
           const entry = { text: data.status, at: data.at ?? Date.now() };
           setStatusLog((prev) =>
@@ -96,5 +95,5 @@ export function useJobResults(sessionId: string | null) {
     };
   }, [sessionId]);
 
-  return { results, status, statusLog, firstResultAt };
+  return { results, status, statusLog };
 }

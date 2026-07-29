@@ -31,13 +31,16 @@ function sessionStatusKey(sessionId: string): string {
 // A pipeline status fires the instant RabbitMQ delivers the message, which
 // is almost always faster than the browser's WebSocket handshake finishes
 // - without persisting it, that status is silently lost every time and the
-// live pipeline view never shows it.
+// live pipeline view never shows it. Appended to a list (not overwritten)
+// so a late-connecting or reconnecting client replays the FULL sequence of
+// stages, not just whichever one happened to be broadcast most recently.
 export async function saveStatus(sessionId: string, statusText: string, at: number): Promise<void> {
   const key = sessionStatusKey(sessionId);
-  await redis.set(key, JSON.stringify({ text: statusText, at }), "EX", SESSION_TTL_SECONDS);
+  await redis.rpush(key, JSON.stringify({ text: statusText, at }));
+  await redis.expire(key, SESSION_TTL_SECONDS);
 }
 
-export async function getStatus(sessionId: string): Promise<{ text: string; at: number } | null> {
-  const raw = await redis.get(sessionStatusKey(sessionId));
-  return raw ? JSON.parse(raw) : null;
+export async function getStatusHistory(sessionId: string): Promise<Array<{ text: string; at: number }>> {
+  const raw = await redis.lrange(sessionStatusKey(sessionId), 0, -1);
+  return raw.map((json) => JSON.parse(json) as { text: string; at: number });
 }

@@ -18,40 +18,18 @@ const SOURCE_OPTIONS = [
   ...JOB_SOURCES.map((source) => ({ value: source.id, label: source.label }))
 ];
 
-// TEMPORARY DEBUG: persists the active search across a page refresh, which
-// previously reset sessionId (and with it, the debug timeline's "search
-// started" reference point) back to the moment of the reload instead of
-// the real search start.
-const SESSION_STORAGE_KEY = "jobmetrics:activeSearch";
-
-type StoredSearch = { sessionId: string; jobCount: number; resumeFileName: string | null; selectedSource: string };
-
-function loadStoredSearch(): StoredSearch | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as StoredSearch) : null;
-  } catch {
-    return null;
-  }
-}
-
 export default function Home() {
   const { data: session, status } = useSession();
 
   const [resumeText, setResumeText] = useState("");
-  const [resumeFileName, setResumeFileName] = useState<string | null>(
-    () => loadStoredSearch()?.resumeFileName ?? null
-  );
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const [isParsingResume, setIsParsingResume] = useState(false);
-  const [selectedSource, setSelectedSource] = useState<string>(
-    () => loadStoredSearch()?.selectedSource ?? JOB_SOURCES[0].id
-  );
+  const [selectedSource, setSelectedSource] = useState<string>(JOB_SOURCES[0].id);
   const [pastedJob, setPastedJob] = useState("");
-  const [sessionId, setSessionId] = useState<string | null>(() => loadStoredSearch()?.sessionId ?? null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [jobCount, setJobCount] = useState(() => loadStoredSearch()?.jobCount ?? 0);
+  const [jobCount, setJobCount] = useState(0);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   async function processResumeFile(file: File) {
@@ -112,15 +90,6 @@ export default function Home() {
 
       setJobCount(data.jobCount);
       setSessionId(data.sessionId);
-      sessionStorage.setItem(
-        SESSION_STORAGE_KEY,
-        JSON.stringify({
-          sessionId: data.sessionId,
-          jobCount: data.jobCount,
-          resumeFileName,
-          selectedSource
-        })
-      );
     } catch {
       setError("Could not reach the server. Try again.");
     } finally {
@@ -168,10 +137,7 @@ export default function Home() {
               : "Matching against your pasted job"}
           </p>
           <button
-            onClick={() => {
-              sessionStorage.removeItem(SESSION_STORAGE_KEY);
-              setSessionId(null);
-            }}
+            onClick={() => setSessionId(null)}
             className="mt-3 text-xs font-medium text-accent hover:underline"
           >
             Start a new search
