@@ -16,13 +16,13 @@ function scoreColorClasses(score: number): string {
   return "border-danger text-danger";
 }
 
-function LoadingDots() {
+function LoadingDots({ colorClassName = "bg-accent" }: { colorClassName?: string }) {
   return (
     <span className="inline-flex gap-0.5">
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="size-1 rounded-full bg-accent animate-loading-dot"
+          className={`size-1 rounded-full animate-loading-dot ${colorClassName}`}
           style={{ animationDelay: `${i * 0.2}s` }}
         />
       ))}
@@ -31,7 +31,7 @@ function LoadingDots() {
 }
 
 export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCount: number }) {
-  const results = useJobResults(sessionId);
+  const { results, status } = useJobResults(sessionId);
   const [revealedCount, setRevealedCount] = useState(0);
 
   useEffect(() => {
@@ -48,6 +48,14 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
       <h2 className="mb-4 text-lg font-semibold">
         Results {revealedCount > 0 && `(${revealedCount}/${jobCount})`}
       </h2>
+
+      {status === "reconnecting" && (
+        <p className="mb-4 flex items-center gap-1 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+          <span className="size-1.5 rounded-full bg-warning animate-pulse-glow" />
+          Connection dropped - reconnecting
+          <LoadingDots colorClassName="bg-warning" />
+        </p>
+      )}
 
       {revealedCount === 0 && (
         <p className="flex items-center gap-1 text-sm text-muted">
