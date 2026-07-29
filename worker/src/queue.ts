@@ -7,11 +7,41 @@ const DEAD_LETTER_EXCHANGE = "jobs-dead-letter-exchange";
 const DEAD_LETTER_QUEUE = "jobs-dead-letter";
 const MAX_ATTEMPTS = 3;
 
+const RECONNECT_DELAY_MS = 5_000;
+// A worker sitting idle for a while (typical between test searches) can
+// have its TCP connection silently dropped by a NAT/firewall in between,
+// with neither side noticing until the next send/receive hangs - this
+// heartbeat lets both ends detect a dead connection quickly instead of
+// only ever working right after a manual restart.
+const HEARTBEAT_SECONDS = 30;
+
 let connection: ChannelModel | undefined;
 let channel: Channel | undefined;
+let currentHandler: ((sessionMessage: SessionScoreMessage) => Promise<void>) | undefined;
 
-export async function connectQueue(): Promise<Channel> {
-  connection = await amqplib.connect(config.rabbitUrl);
+function withHeartbeat(url: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set("heartbeat", String(HEARTBEAT_SECONDS));
+  return parsed.toString();
+}
+
+async function setUpChannel(): Promise<Channel> {
+  connection = await amqplib.connect(withHeartbeat(config.rabbitUrl));
+
+  connection.on("error", (error) => console.error("RabbitMQ connection error:", error));
+  connection.on("close", () => {
+    console.error("RabbitMQ connection closed - reconnecting...");
+    channel = undefined;
+    setTimeout(() => {
+      setUpChannel()
+        .then(() => {
+          if (currentHandler) return registerConsumer(currentHandler);
+          return undefined;
+        })
+        .catch((error) => console.error("Reconnect to RabbitMQ failed:", error));
+    }, RECONNECT_DELAY_MS);
+  });
+
   channel = await connection.createChannel();
 
   await channel.assertExchange(DEAD_LETTER_EXCHANGE, "fanout", { durable: true });
@@ -27,13 +57,17 @@ export async function connectQueue(): Promise<Channel> {
   return channel;
 }
 
+export async function connectQueue(): Promise<Channel> {
+  return setUpChannel();
+}
+
 function getAttemptCount(message: ConsumeMessage): number {
   const headers = message.properties.headers ?? {};
   const xDeath = headers["x-death"] as Array<{ count?: number }> | undefined;
   return xDeath?.[0]?.count ?? 0;
 }
 
-export async function consumeJobs(
+async function registerConsumer(
   handler: (sessionMessage: SessionScoreMessage) => Promise<void>
 ): Promise<void> {
   if (!channel) throw new Error("Queue channel not connected - call connectQueue() first");
@@ -61,6 +95,16 @@ export async function consumeJobs(
       console.error(`Job failed (attempt ${attempts + 1}/${MAX_ATTEMPTS}):`, error);
     }
   });
+}
+
+// Stores the handler so a reconnect (see setUpChannel's connection.on("close"))
+// can re-register the same consumer on the fresh channel automatically,
+// instead of the worker silently going deaf until someone manually restarts it.
+export async function consumeJobs(
+  handler: (sessionMessage: SessionScoreMessage) => Promise<void>
+): Promise<void> {
+  currentHandler = handler;
+  await registerConsumer(handler);
 }
 
 export function publishJob(job: SessionScoreMessage): boolean {
