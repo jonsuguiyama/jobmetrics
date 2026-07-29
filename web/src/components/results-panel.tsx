@@ -110,11 +110,23 @@ export function LiveDuration({ from, until }: { from: number; until: number | nu
 
   useEffect(() => {
     if (until !== null) return undefined;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
+    const interval = setInterval(() => {
+      const next = Date.now();
+      if (typeof document !== "undefined") {
+        console.log("[LiveDuration] tick", {
+          from,
+          next,
+          visibilityState: document.visibilityState,
+          hidden: document.hidden
+        });
+      }
+      setNow(next);
+    }, 1000);
     return () => clearInterval(interval);
-  }, [until]);
+  }, [until, from]);
 
   const seconds = Math.max(0, Math.round(((until ?? now) - from) / 1000));
+  console.log("[LiveDuration] render", { from, until, now, seconds });
   return <span className="ml-auto text-xs text-muted">{seconds}s</span>;
 }
 
@@ -292,6 +304,23 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
     const timer = setTimeout(() => setRevealedCount((count) => count + 1), REVEAL_INTERVAL_MS);
     return () => clearTimeout(timer);
   }, [revealedCount, results.length]);
+
+  useEffect(() => {
+    function onVisibilityChange() {
+      console.log("[ResultsPanel] visibilitychange", {
+        visibilityState: document.visibilityState,
+        hidden: document.hidden,
+        at: Date.now()
+      });
+    }
+    console.log("[ResultsPanel] mounted", {
+      visibilityState: document.visibilityState,
+      hidden: document.hidden,
+      at: Date.now()
+    });
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
 
   const searchDone = jobCount > 0 && results.length >= jobCount;
 
