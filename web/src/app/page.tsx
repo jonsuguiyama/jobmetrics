@@ -18,7 +18,7 @@ export default function Home() {
   const [resumeText, setResumeText] = useState("");
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const [isParsingResume, setIsParsingResume] = useState(false);
-  const [selectedRepos, setSelectedRepos] = useState<string[]>([JOB_SOURCES[0].id]);
+  const [selectedSource, setSelectedSource] = useState<string>(JOB_SOURCES[0].id);
   const [pastedJob, setPastedJob] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -64,10 +64,6 @@ export default function Home() {
     if (file) processResumeFile(file);
   }
 
-  function toggleRepo(id: string) {
-    setSelectedRepos((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
-  }
-
   async function handleSearch() {
     setError(null);
     setSessionId(null);
@@ -77,7 +73,7 @@ export default function Home() {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resumeText, repos: selectedRepos, pastedJob })
+        body: JSON.stringify({ resumeText, repos: selectedSource ? [selectedSource] : [], pastedJob })
       });
       const data = await res.json();
 
@@ -112,7 +108,7 @@ export default function Home() {
     );
   }
 
-  const canSearch = resumeText.trim().length > 0 && (selectedRepos.length > 0 || pastedJob.trim().length > 0);
+  const canSearch = resumeText.trim().length > 0 && (selectedSource !== "" || pastedJob.trim().length > 0);
 
   let uploadLabel = "Click to upload or drop your resume here";
   if (isParsingResume) uploadLabel = "Reading your resume...";
@@ -145,20 +141,19 @@ export default function Home() {
           />
         </label>
 
-        <h2 className="mb-3 mt-6 text-lg font-semibold">2. Job sources</h2>
-        <div className="flex flex-col gap-2">
+        <h2 className="mb-3 mt-6 text-lg font-semibold">2. Job Source</h2>
+        <select
+          value={selectedSource}
+          onChange={(e) => setSelectedSource(e.target.value)}
+          className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent"
+        >
+          <option value="">None - just paste a job below</option>
           {JOB_SOURCES.map((source) => (
-            <label key={source.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={selectedRepos.includes(source.id)}
-                onChange={() => toggleRepo(source.id)}
-                className="size-4 accent-[var(--accent)]"
-              />
+            <option key={source.id} value={source.id}>
               {source.label}
-            </label>
+            </option>
           ))}
-        </div>
+        </select>
 
         <h2 className="mb-2 mt-6 text-lg font-semibold">3. Or paste a specific job</h2>
         <textarea
