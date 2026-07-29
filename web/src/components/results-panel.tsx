@@ -274,11 +274,22 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
 
   // Re-render every second so the pipeline's elapsed-time readout stays
   // live - stops once every job is back so it doesn't keep climbing to a
-  // meaningless number while the tab just sits open afterward.
+  // meaningless number while the tab just sits open afterward. Browsers
+  // throttle setInterval in a backgrounded tab (it can look frozen the
+  // whole time you're away), so also force an immediate refresh the
+  // moment the tab becomes visible again instead of waiting on the next
+  // throttled tick.
   useEffect(() => {
     if (searchDone) return undefined;
     const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [searchDone]);
 
   function handleFilterChange(value: FilterValue) {
