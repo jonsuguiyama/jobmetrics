@@ -51,12 +51,12 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
 
       {revealedCount === 0 && (
         <p className="flex items-center gap-1 text-sm text-muted">
-          Waiting for the first match to come in
+          Scoring {jobCount} job{jobCount === 1 ? "" : "s"}
           <LoadingDots />
         </p>
       )}
 
-      {scoring && (
+      {scoring && revealedCount > 0 && (
         <div className="mb-4">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
             <div
@@ -65,7 +65,7 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
             />
           </div>
           <p className="mt-2 flex items-center gap-1 text-xs text-muted">
-            Scoring job {Math.min(revealedCount + 1, jobCount)} of {jobCount}
+            Showing {revealedCount} of {jobCount}
             <LoadingDots />
           </p>
         </div>
