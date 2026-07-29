@@ -8,6 +8,8 @@ import { useJobResults } from "@/lib/use-job-results";
 // them on a short timer instead of all at once keeps the "matches coming in"
 // feel without actually waiting on the network for it.
 const REVEAL_INTERVAL_MS = 200;
+const PAGE_SIZE = 10;
+const JUMP_SIZE = 10;
 
 function scoreColorClasses(score: number): string {
   if (score > 69) return "border-accent text-accent";
@@ -30,9 +32,98 @@ function LoadingDots({ colorClassName = "bg-accent" }: { colorClassName?: string
   );
 }
 
+function PageButton({
+  children,
+  onClick,
+  disabled,
+  active
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`min-w-8 rounded-md px-2 py-1 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
+        active ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  onPageChange
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  const abridged = totalPages > 10;
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-1">
+      <PageButton onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}>
+        &lt;
+      </PageButton>
+      {abridged && (
+        <PageButton
+          onClick={() => onPageChange(Math.max(1, currentPage - JUMP_SIZE))}
+          disabled={currentPage === 1}
+        >
+          &lt;&lt;
+        </PageButton>
+      )}
+
+      {abridged ? (
+        <>
+          {[1, 2, 3].map((page) => (
+            <PageButton key={page} onClick={() => onPageChange(page)} active={page === currentPage}>
+              {page}
+            </PageButton>
+          ))}
+          <span className="px-1 text-sm text-muted">...</span>
+          {[totalPages - 2, totalPages - 1, totalPages].map((page) => (
+            <PageButton key={page} onClick={() => onPageChange(page)} active={page === currentPage}>
+              {page}
+            </PageButton>
+          ))}
+        </>
+      ) : (
+        Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+          <PageButton key={page} onClick={() => onPageChange(page)} active={page === currentPage}>
+            {page}
+          </PageButton>
+        ))
+      )}
+
+      {abridged && (
+        <PageButton
+          onClick={() => onPageChange(Math.min(totalPages, currentPage + JUMP_SIZE))}
+          disabled={currentPage === totalPages}
+        >
+          &gt;&gt;
+        </PageButton>
+      )}
+      <PageButton onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}>
+        &gt;
+      </PageButton>
+    </div>
+  );
+}
+
 export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCount: number }) {
   const { results, status } = useJobResults(sessionId);
   const [revealedCount, setRevealedCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (revealedCount >= results.length) return undefined;
@@ -42,6 +133,9 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
 
   const revealed = results.slice(0, revealedCount);
   const scoring = revealedCount < jobCount;
+  const totalPages = Math.max(1, Math.ceil(revealed.length / PAGE_SIZE));
+  const page = Math.min(currentPage, totalPages);
+  const pageItems = revealed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
@@ -80,7 +174,7 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
       )}
 
       <ul className="flex flex-col gap-3">
-        {revealed.map((result) => (
+        {pageItems.map((result) => (
           <li
             key={result.jobId}
             className="animate-result-in rounded-lg border border-border bg-surface-2 p-4"
@@ -119,6 +213,8 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
           </li>
         ))}
       </ul>
+
+      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setCurrentPage} />
     </section>
   );
 }
