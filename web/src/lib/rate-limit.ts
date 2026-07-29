@@ -1,6 +1,6 @@
 import { getSql } from "./db";
 
-export const DAILY_SEARCH_LIMIT = 3;
+export const DAILY_SEARCH_LIMIT = 5;
 
 export type RateLimitDecision = {
   allowed: boolean;
