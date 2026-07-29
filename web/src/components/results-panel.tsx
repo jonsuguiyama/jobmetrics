@@ -105,32 +105,33 @@ function CheckIcon() {
 // (renders once, no interval needed). Isolated on purpose: each duration
 // manages itself instead of the whole pipeline sharing one "now" clock that
 // every entry's math depended on getting right.
-export function LiveDuration({ from, until }: { from: number; until: number | null }) {
+//
+// "from"/"until" are server timestamps; the browser's own clock can be
+// off by a lot (confirmed: this machine's clock reads ~130s behind real
+// time), so a raw client Date.now() would come out *before* "from" and
+// the elapsed seconds would clamp to 0 forever. clockOffsetMs (server time
+// minus client time, measured from a real server timestamp elsewhere) corrects
+// the client tick back onto the server's clock before comparing.
+export function LiveDuration({
+  from,
+  until,
+  clockOffsetMs = 0
+}: {
+  from: number;
+  until: number | null;
+  clockOffsetMs?: number;
+}) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (until !== null) return undefined;
 
-    function tick(source: string) {
-      const next = Date.now();
-      console.log("[LiveDuration] tick", {
-        from,
-        next,
-        source,
-        visibilityState: document.visibilityState,
-        hidden: document.hidden
-      });
-      setNow(next);
-    }
+    const interval = setInterval(() => setNow(Date.now()), 1000);
 
-    const interval = setInterval(() => tick("interval"), 1000);
-
-    // Chromium throttles setInterval on a hidden/occluded page down to as
-    // little as 1 tick/min (Page Lifecycle intensive throttling) - without
-    // this, the display only catches up whenever that next throttled tick
-    // happens to land, instead of the moment the tab is actually visible again.
+    // Chromium throttles setInterval on a hidden/occluded page - catch up
+    // immediately instead of waiting on the next (possibly delayed) tick.
     function onVisibilityChange() {
-      if (document.visibilityState === "visible") tick("visibilitychange");
+      if (document.visibilityState === "visible") setNow(Date.now());
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
 
@@ -138,10 +139,9 @@ export function LiveDuration({ from, until }: { from: number; until: number | nu
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [until, from]);
+  }, [until]);
 
-  const seconds = Math.max(0, Math.round(((until ?? now) - from) / 1000));
-  console.log("[LiveDuration] render", { from, until, now, seconds });
+  const seconds = Math.max(0, Math.round(((until ?? now + clockOffsetMs) - from) / 1000));
   return <span className="ml-auto text-xs text-muted">{seconds}s</span>;
 }
 
@@ -151,10 +151,12 @@ export function LiveDuration({ from, until }: { from: number; until: number | nu
 // makes it visible rather than just plumbing.
 function LivePipeline({
   timeline,
-  isComplete
+  isComplete,
+  clockOffsetMs
 }: {
   timeline: { label: string; at: number }[];
   isComplete: boolean;
+  clockOffsetMs: number;
 }) {
   const lastAt = timeline[timeline.length - 1].at;
 
@@ -164,7 +166,11 @@ function LivePipeline({
         <span>LIVE PIPELINE — RabbitMQ · Node.js worker · Gemini API</span>
         <span className="text-muted/80">
           {isComplete ? "completed in " : ""}
-          <LiveDuration from={timeline[0].at} until={isComplete ? lastAt : null} />
+          <LiveDuration
+            from={timeline[0].at}
+            until={isComplete ? lastAt : null}
+            clockOffsetMs={clockOffsetMs}
+          />
           {isComplete ? "" : " elapsed"}
         </span>
       </p>
@@ -188,7 +194,13 @@ function LivePipeline({
               </span>
               <span className={isCurrent ? "text-foreground" : "text-muted"}>{entry.label}</span>
               {isCurrent && <LoadingDots />}
-              {showDuration && <LiveDuration from={entry.at} until={isCurrent ? null : nextAt} />}
+              {showDuration && (
+                <LiveDuration
+                  from={entry.at}
+                  until={isCurrent ? null : nextAt}
+                  clockOffsetMs={clockOffsetMs}
+                />
+              )}
             </li>
           );
         })}
@@ -309,7 +321,7 @@ function Pagination({
 }
 
 export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCount: number }) {
-  const { results, status, statusLog } = useJobResults(sessionId);
+  const { results, status, statusLog, clockOffsetMs } = useJobResults(sessionId);
   const [revealedCount, setRevealedCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValue, setFilterValue] = useState<FilterValue>("all");
@@ -319,23 +331,6 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
     const timer = setTimeout(() => setRevealedCount((count) => count + 1), REVEAL_INTERVAL_MS);
     return () => clearTimeout(timer);
   }, [revealedCount, results.length]);
-
-  useEffect(() => {
-    function onVisibilityChange() {
-      console.log("[ResultsPanel] visibilitychange", {
-        visibilityState: document.visibilityState,
-        hidden: document.hidden,
-        at: Date.now()
-      });
-    }
-    console.log("[ResultsPanel] mounted", {
-      visibilityState: document.visibilityState,
-      hidden: document.hidden,
-      at: Date.now()
-    });
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, []);
 
   const searchDone = jobCount > 0 && results.length >= jobCount;
 
@@ -361,7 +356,9 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
-      {timeline.length > 0 && <LivePipeline timeline={timeline} isComplete={searchDone} />}
+      {timeline.length > 0 && (
+        <LivePipeline timeline={timeline} isComplete={searchDone} clockOffsetMs={clockOffsetMs} />
+      )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">

@@ -28,6 +28,11 @@ export function useJobResults(sessionId: string | null) {
   const [results, setResults] = useState<JobResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [statusLog, setStatusLog] = useState<PipelineStatus[]>([]);
+  // How far this client's own clock is from the server's, measured fresh off
+  // every status message's timestamp - not a fixed guess, so it self-corrects
+  // for whatever any given user's machine clock happens to be off by (this
+  // one included: it's confirmed to read ~130s behind real time).
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -69,6 +74,7 @@ export function useJobResults(sessionId: string | null) {
           setStatusLog((prev) =>
             prev.some((e) => e.text === entry.text && e.at === entry.at) ? prev : [...prev, entry]
           );
+          setClockOffsetMs(entry.at - Date.now());
         }
       };
 
@@ -95,5 +101,5 @@ export function useJobResults(sessionId: string | null) {
     };
   }, [sessionId]);
 
-  return { results, status, statusLog };
+  return { results, status, statusLog, clockOffsetMs };
 }
