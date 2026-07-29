@@ -1,5 +1,6 @@
 import amqplib, { type ChannelModel, type Channel, type ConsumeMessage } from "amqplib";
 import { config } from "./config.js";
+import { broadcastStatus } from "./websocket.js";
 import type { SessionScoreMessage } from "./types.js";
 
 const DEAD_LETTER_EXCHANGE = "jobs-dead-letter-exchange";
@@ -48,6 +49,7 @@ export async function consumeJobs(
       console.log(
         `[${new Date().toISOString()}] Dequeued session ${sessionMessage.sessionId} (${sessionMessage.jobs.length} jobs)`
       );
+      broadcastStatus(sessionMessage.sessionId, `Dequeued from RabbitMQ (${sessionMessage.jobs.length} jobs)`);
       await handler(sessionMessage);
       channel!.ack(message);
     } catch (error) {

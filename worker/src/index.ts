@@ -12,10 +12,11 @@ async function main() {
   console.log(`Connected to RabbitMQ, consuming "${config.queueName}"`);
 
   await consumeJobs(async (sessionMessage) => {
-    broadcastStatus(sessionMessage.sessionId, "Worker picked up your search - calling Gemini...");
-    // TEMPORARY DEBUG: timestamps bracketing the actual Gemini call, so a
-    // post-hoc log check shows exactly how long that call took versus
-    // everything else (dequeue-to-here, save+broadcast after).
+    // TEMPORARY DEBUG: each of these mirrors a console.log in this same
+    // handler/queue.ts, broadcast live to the debug panel too - so the full
+    // dequeue -> Gemini -> save/broadcast timeline is visible on-screen
+    // without needing pm2 logs at all.
+    broadcastStatus(sessionMessage.sessionId, "Calling Gemini...");
     console.log(`[${new Date().toISOString()}] Calling Gemini for session ${sessionMessage.sessionId}`);
     const results = await scoreAllJobs(sessionMessage);
     console.log(`[${new Date().toISOString()}] Gemini returned for session ${sessionMessage.sessionId}`);
@@ -25,6 +26,7 @@ async function main() {
       broadcastResult(result);
     }
     console.log(`[${new Date().toISOString()}] Done saving/broadcasting session ${sessionMessage.sessionId}`);
+    broadcastStatus(sessionMessage.sessionId, "Done saving/broadcasting results");
   });
 }
 
