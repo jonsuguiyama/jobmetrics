@@ -100,32 +100,51 @@ function CheckIcon() {
   );
 }
 
+// Ticks its own seconds counter independently - "until: null" means still
+// ongoing (ticks off its own interval), a fixed number means already ended
+// (renders once, no interval needed). Isolated on purpose: each duration
+// manages itself instead of the whole pipeline sharing one "now" clock that
+// every entry's math depended on getting right.
+function LiveDuration({ from, until }: { from: number; until: number | null }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (until !== null) return undefined;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [until]);
+
+  const seconds = Math.max(0, Math.round(((until ?? now) - from) / 1000));
+  return <span className="ml-auto text-xs text-muted">{seconds}s</span>;
+}
+
 // Surfaces the RabbitMQ producer/consumer handoff and the Gemini call as
 // they actually happen, instead of hiding them behind a generic spinner -
 // the message-queue architecture is the point of this project, so this
 // makes it visible rather than just plumbing.
 function LivePipeline({
   timeline,
-  now,
   isComplete
 }: {
   timeline: { label: string; at: number }[];
-  now: number;
   isComplete: boolean;
 }) {
-  const elapsedS = Math.max(0, Math.round(((isComplete ? timeline[timeline.length - 1].at : now) - timeline[0].at) / 1000));
+  const lastAt = timeline[timeline.length - 1].at;
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-surface-2 p-4">
       <p className="mb-3 flex items-center justify-between text-xs font-semibold text-muted">
         <span>LIVE PIPELINE — RabbitMQ · Node.js worker · Gemini API</span>
-        <span className="text-muted/80">{isComplete ? `completed in ${elapsedS}s` : `${elapsedS}s elapsed`}</span>
+        <span className="text-muted/80">
+          {isComplete ? "completed in " : ""}
+          <LiveDuration from={timeline[0].at} until={isComplete ? lastAt : null} />
+          {isComplete ? "" : " elapsed"}
+        </span>
       </p>
       <ul className="flex flex-col gap-2">
         {timeline.map((entry, i) => {
           const isCurrent = i === timeline.length - 1 && !isComplete;
-          const nextAt = timeline[i + 1]?.at ?? now;
-          const durationS = Math.max(0, Math.round((nextAt - entry.at) / 1000));
+          const nextAt = timeline[i + 1]?.at ?? null;
           return (
             <li key={`${entry.label}-${entry.at}`} className="flex items-center gap-2 text-sm">
               <span className="flex size-4 shrink-0 items-center justify-center">
@@ -137,7 +156,7 @@ function LivePipeline({
               </span>
               <span className={isCurrent ? "text-foreground" : "text-muted"}>{entry.label}</span>
               {isCurrent && <LoadingDots />}
-              <span className="ml-auto text-xs text-muted">{durationS}s</span>
+              <LiveDuration from={entry.at} until={isCurrent ? null : nextAt} />
             </li>
           );
         })}
@@ -262,7 +281,6 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
   const [revealedCount, setRevealedCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValue, setFilterValue] = useState<FilterValue>("all");
-  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (revealedCount >= results.length) return undefined;
@@ -271,26 +289,6 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
   }, [revealedCount, results.length]);
 
   const searchDone = jobCount > 0 && results.length >= jobCount;
-
-  // Re-render every second so the pipeline's elapsed-time readout stays
-  // live - stops once every job is back so it doesn't keep climbing to a
-  // meaningless number while the tab just sits open afterward. Browsers
-  // throttle setInterval in a backgrounded tab (it can look frozen the
-  // whole time you're away), so also force an immediate refresh the
-  // moment the tab becomes visible again instead of waiting on the next
-  // throttled tick.
-  useEffect(() => {
-    if (searchDone) return undefined;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") setNow(Date.now());
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [searchDone]);
 
   function handleFilterChange(value: FilterValue) {
     setFilterValue(value);
@@ -314,7 +312,7 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
-      {timeline.length > 0 && <LivePipeline timeline={timeline} now={now} isComplete={searchDone} />}
+      {timeline.length > 0 && <LivePipeline timeline={timeline} isComplete={searchDone} />}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">

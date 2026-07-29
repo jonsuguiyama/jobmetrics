@@ -13,7 +13,7 @@ const RECONNECT_DELAY_MS = 5_000;
 // with neither side noticing until the next send/receive hangs - this
 // heartbeat lets both ends detect a dead connection quickly instead of
 // only ever working right after a manual restart.
-const HEARTBEAT_SECONDS = 30;
+const HEARTBEAT_SECONDS = 10;
 
 let connection: ChannelModel | undefined;
 let channel: Channel | undefined;
