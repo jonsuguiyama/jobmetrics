@@ -11,6 +11,7 @@
   --accent-foreground: #04120c;
   --danger: #ff5c5c;
   --warning: #ffb020;
+  --orange: #ff8a3d;
   --radius: 0.75rem;
 }
 
@@ -25,6 +26,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-danger: var(--danger);
   --color-warning: var(--warning);
+  --color-orange: var(--orange);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --radius-lg: var(--radius);

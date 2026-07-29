@@ -10,8 +10,9 @@ import { useJobResults } from "@/lib/use-job-results";
 const REVEAL_INTERVAL_MS = 200;
 
 function scoreColorClasses(score: number): string {
-  if (score >= 70) return "border-accent text-accent";
-  if (score >= 40) return "border-warning text-warning";
+  if (score > 69) return "border-accent text-accent";
+  if (score > 55) return "border-warning text-warning";
+  if (score > 40) return "border-orange text-orange";
   return "border-danger text-danger";
 }
 
