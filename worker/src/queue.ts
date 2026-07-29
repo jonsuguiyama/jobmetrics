@@ -15,6 +15,13 @@ const RECONNECT_DELAY_MS = 5_000;
 // only ever working right after a manual restart.
 const HEARTBEAT_SECONDS = 10;
 
+// Passive heartbeat detection still needs ~2 missed heartbeats before
+// amqplib gives up on a connection. This actively probes the connection on
+// a short cycle instead of only waiting on that, so a dead connection gets
+// caught and replaced in seconds, not tens of seconds.
+const HEALTH_CHECK_INTERVAL_MS = 15_000;
+const HEALTH_CHECK_TIMEOUT_MS = 5_000;
+
 let connection: ChannelModel | undefined;
 let channel: Channel | undefined;
 let currentHandler: ((sessionMessage: SessionScoreMessage) => Promise<void>) | undefined;
@@ -57,8 +64,43 @@ async function setUpChannel(): Promise<Channel> {
   return channel;
 }
 
+function forceReconnect(reason: string, error?: unknown): void {
+  console.error(`RabbitMQ health check: ${reason} - forcing reconnect`, error ?? "");
+  // Closing the connection triggers setUpChannel's "close" handler, which
+  // already knows how to reconnect and re-register the consumer.
+  connection?.close().catch(() => undefined);
+}
+
+function startHealthCheck(): void {
+  setInterval(() => {
+    if (!channel) return;
+
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      forceReconnect(`no response within ${HEALTH_CHECK_TIMEOUT_MS}ms`);
+    }, HEALTH_CHECK_TIMEOUT_MS);
+
+    channel
+      .checkQueue(config.queueName)
+      .then(() => {
+        settled = true;
+        clearTimeout(timeout);
+      })
+      .catch((error: unknown) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        forceReconnect("check failed", error);
+      });
+  }, HEALTH_CHECK_INTERVAL_MS);
+}
+
 export async function connectQueue(): Promise<Channel> {
-  return setUpChannel();
+  const result = await setUpChannel();
+  startHealthCheck();
+  return result;
 }
 
 function getAttemptCount(message: ConsumeMessage): number {
