@@ -1,6 +1,6 @@
 import { WebSocketServer, type WebSocket } from "ws";
 import { config } from "./config.js";
-import { getJobResults } from "./redis.js";
+import { getJobResults, getStatus, saveStatus } from "./redis.js";
 import type { JobResult } from "./types.js";
 
 const clientsBySession = new Map<string, Set<WebSocket>>();
@@ -8,6 +8,12 @@ const clientsBySession = new Map<string, Set<WebSocket>>();
 function sendResult(socket: WebSocket, result: JobResult): void {
   if (socket.readyState === socket.OPEN) {
     socket.send(JSON.stringify({ type: "job-result", result }));
+  }
+}
+
+function sendStatus(socket: WebSocket, statusText: string, at: number): void {
+  if (socket.readyState === socket.OPEN) {
+    socket.send(JSON.stringify({ type: "status", status: statusText, at }));
   }
 }
 
@@ -37,6 +43,17 @@ export function startWebSocketServer(): WebSocketServer {
       })
       .catch((error) => console.error(`Failed to replay results for session ${sessionId}:`, error));
 
+    // TEMPORARY DEBUG: same replay problem as results - the "picked up your
+    // job" status fires the instant RabbitMQ delivers the message, which is
+    // almost always faster than this very handshake finishes, so without
+    // this replay the debug panel would show "(none received yet)" forever
+    // even after the job completed.
+    getStatus(sessionId)
+      .then((status) => {
+        if (status) sendStatus(socket, status.text, status.at);
+      })
+      .catch((error) => console.error(`Failed to replay status for session ${sessionId}:`, error));
+
     socket.on("close", () => {
       clientsBySession.get(sessionId)?.delete(socket);
     });
@@ -54,15 +71,13 @@ export function broadcastResult(result: JobResult): void {
 
 // TEMPORARY DEBUG: lets the frontend show what the worker is doing right
 // now instead of the user having to check pm2 logs / RabbitMQ manually.
-// Not persisted anywhere (unlike job results), so a client that connects
-// after a given status was sent just won't see that one - fine for a
-// throwaway debug panel, not worth building real persistence for.
 export function broadcastStatus(sessionId: string, statusText: string): void {
+  const at = Date.now();
+  saveStatus(sessionId, statusText, at).catch((error) =>
+    console.error(`Failed to save status for session ${sessionId}:`, error)
+  );
+
   const sockets = clientsBySession.get(sessionId);
   if (!sockets) return;
-
-  const payload = JSON.stringify({ type: "status", status: statusText, at: Date.now() });
-  for (const socket of sockets) {
-    if (socket.readyState === socket.OPEN) socket.send(payload);
-  }
+  for (const socket of sockets) sendStatus(socket, statusText, at);
 }

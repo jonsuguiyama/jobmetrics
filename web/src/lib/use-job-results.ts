@@ -18,15 +18,16 @@ const RECONNECT_DELAY_MS = 1500;
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting";
 
-// TEMPORARY DEBUG: what the worker last reported doing for this session,
-// via worker/src/websocket.ts's broadcastStatus(). Not persisted, so a late
-// connection just won't see earlier ones - fine for a throwaway debug view.
+// TEMPORARY DEBUG: every status the worker has reported for this session,
+// via worker/src/websocket.ts's broadcastStatus() (replayed from Redis on
+// connect, so a late/reconnecting client still gets the full history).
 export type WorkerStatus = { text: string; at: number };
 
 export function useJobResults(sessionId: string | null) {
   const [results, setResults] = useState<JobResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
-  const [workerStatus, setWorkerStatus] = useState<WorkerStatus | null>(null);
+  const [statusLog, setStatusLog] = useState<WorkerStatus[]>([]);
+  const [firstResultAt, setFirstResultAt] = useState<number | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -63,8 +64,12 @@ export function useJobResults(sessionId: string | null) {
             if (prev.some((existing) => existing.jobId === result.jobId)) return prev;
             return [...prev, result].sort((a, b) => b.score - a.score);
           });
+          setFirstResultAt((prev) => prev ?? Date.now());
         } else if (data.type === "status" && data.status) {
-          setWorkerStatus({ text: data.status, at: data.at ?? Date.now() });
+          const entry = { text: data.status, at: data.at ?? Date.now() };
+          setStatusLog((prev) =>
+            prev.some((e) => e.text === entry.text && e.at === entry.at) ? prev : [...prev, entry]
+          );
         }
       };
 
@@ -91,5 +96,5 @@ export function useJobResults(sessionId: string | null) {
     };
   }, [sessionId]);
 
-  return { results, status, workerStatus };
+  return { results, status, statusLog, firstResultAt };
 }

@@ -58,7 +58,7 @@ function ScoreFilter({ value, onChange }: { value: FilterValue; onChange: (value
         onClick={() => onChange("all")}
         className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${
           value === "all"
-            ? "border-muted bg-muted text-background"
+            ? "border-transparent bg-foreground text-background"
             : "border-border text-muted hover:border-muted"
         }`}
       >
@@ -235,11 +235,16 @@ function Pagination({
 }
 
 export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCount: number }) {
-  const { results, status, workerStatus } = useJobResults(sessionId);
+  const { results, status, statusLog, firstResultAt } = useJobResults(sessionId);
   const [revealedCount, setRevealedCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValue, setFilterValue] = useState<FilterValue>("all");
   const [now, setNow] = useState(() => Date.now());
+  // TEMPORARY DEBUG: captured client-side the moment this search started
+  // rendering, independent of any server message - so the total elapsed
+  // timer always counts from the real start, even if every worker status
+  // gets lost or delayed.
+  const [searchStartedAt] = useState(() => Date.now());
 
   useEffect(() => {
     if (revealedCount >= results.length) return undefined;
@@ -247,8 +252,8 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
     return () => clearTimeout(timer);
   }, [revealedCount, results.length]);
 
-  // TEMPORARY DEBUG: re-render every second so the debug panel's "Xs ago"
-  // timestamps stay live even when nothing else changes.
+  // TEMPORARY DEBUG: re-render every second so the debug panel's timers
+  // stay live even when nothing else changes.
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
@@ -267,19 +272,36 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
   const page = Math.min(currentPage, totalPages);
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // TEMPORARY DEBUG: a timeline of every stage this search has gone
+  // through, each entry's duration measured to the NEXT one (or to "now",
+  // live, for whichever stage is still ongoing) - not just the last status
+  // received, so nothing is hidden while waiting on the next event.
+  const timeline = [
+    { label: "Search started", at: searchStartedAt },
+    ...statusLog.map((s) => ({ label: s.text, at: s.at })),
+    ...(firstResultAt !== null ? [{ label: "First result received", at: firstResultAt }] : [])
+  ];
+
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
       <div className="mb-4 rounded-lg border border-dashed border-warning/50 bg-warning/5 p-3 font-mono text-xs text-muted">
         <p className="mb-1.5 font-semibold text-warning">DEBUG (temporary)</p>
         <p>sessionId: {sessionId}</p>
         <p>WS connection: {status}</p>
-        <p>
-          worker status:{" "}
-          {workerStatus
-            ? `"${workerStatus.text}" (${Math.max(0, Math.round((now - workerStatus.at) / 1000))}s ago)`
-            : "(none received yet)"}
+        <p className="mt-1.5 text-warning">
+          total elapsed: {Math.max(0, Math.round((now - searchStartedAt) / 1000))}s
         </p>
-        <p>
+        {timeline.map((entry, i) => {
+          const nextAt = timeline[i + 1]?.at ?? now;
+          const durationS = Math.max(0, Math.round((nextAt - entry.at) / 1000));
+          const ongoing = i === timeline.length - 1;
+          return (
+            <p key={`${entry.label}-${entry.at}`}>
+              [{i}] {entry.label} — {durationS}s{ongoing ? " (ongoing)" : ""}
+            </p>
+          );
+        })}
+        <p className="mt-1.5">
           results: {results.length} received / {revealedCount} revealed / {jobCount} expected
         </p>
         <p>
