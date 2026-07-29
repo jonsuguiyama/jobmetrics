@@ -43,11 +43,10 @@ export function startWebSocketServer(): WebSocketServer {
       })
       .catch((error) => console.error(`Failed to replay results for session ${sessionId}:`, error));
 
-    // TEMPORARY DEBUG: same replay problem as results - the "picked up your
-    // job" status fires the instant RabbitMQ delivers the message, which is
-    // almost always faster than this very handshake finishes, so without
-    // this replay the debug panel would show "(none received yet)" forever
-    // even after the job completed.
+    // Same replay problem as results - a pipeline status fires the instant
+    // RabbitMQ delivers the message, which is almost always faster than
+    // this very handshake finishes, so without this replay the live
+    // pipeline view would show nothing even after the job completed.
     getStatus(sessionId)
       .then((status) => {
         if (status) sendStatus(socket, status.text, status.at);
@@ -69,8 +68,8 @@ export function broadcastResult(result: JobResult): void {
   for (const socket of sockets) sendResult(socket, result);
 }
 
-// TEMPORARY DEBUG: lets the frontend show what the worker is doing right
-// now instead of the user having to check pm2 logs / RabbitMQ manually.
+// Powers the "Live pipeline" view - lets the frontend show what the worker
+// is doing right now (queue handoff, LLM call, results streaming back).
 export function broadcastStatus(sessionId: string, statusText: string): void {
   const at = Date.now();
   saveStatus(sessionId, statusText, at).catch((error) =>

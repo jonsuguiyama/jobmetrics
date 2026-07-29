@@ -84,6 +84,67 @@ function ScoreFilter({ value, onChange }: { value: FilterValue; onChange: (value
   );
 }
 
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className="size-3.5 text-accent"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m4 10 4 4 8-8" />
+    </svg>
+  );
+}
+
+// Surfaces the RabbitMQ producer/consumer handoff and the Gemini call as
+// they actually happen, instead of hiding them behind a generic spinner -
+// the message-queue architecture is the point of this project, so this
+// makes it visible rather than just plumbing.
+function LivePipeline({
+  timeline,
+  now,
+  isComplete
+}: {
+  timeline: { label: string; at: number }[];
+  now: number;
+  isComplete: boolean;
+}) {
+  const elapsedS = Math.max(0, Math.round(((isComplete ? timeline[timeline.length - 1].at : now) - timeline[0].at) / 1000));
+
+  return (
+    <div className="mb-4 rounded-lg border border-border bg-surface-2 p-4">
+      <p className="mb-3 flex items-center justify-between text-xs font-semibold text-muted">
+        <span>LIVE PIPELINE — RabbitMQ · Node.js worker · Gemini API</span>
+        <span className="text-muted/80">{isComplete ? `completed in ${elapsedS}s` : `${elapsedS}s elapsed`}</span>
+      </p>
+      <ul className="flex flex-col gap-2">
+        {timeline.map((entry, i) => {
+          const isCurrent = i === timeline.length - 1 && !isComplete;
+          const nextAt = timeline[i + 1]?.at ?? now;
+          const durationS = Math.max(0, Math.round((nextAt - entry.at) / 1000));
+          return (
+            <li key={`${entry.label}-${entry.at}`} className="flex items-center gap-2 text-sm">
+              <span className="flex size-4 shrink-0 items-center justify-center">
+                {isCurrent ? (
+                  <span className="size-1.5 rounded-full bg-accent animate-pulse-glow" />
+                ) : (
+                  <CheckIcon />
+                )}
+              </span>
+              <span className={isCurrent ? "text-foreground" : "text-muted"}>{entry.label}</span>
+              {isCurrent ? <LoadingDots /> : <span className="ml-auto text-xs text-muted">{durationS}s</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function LoadingDots({ colorClassName = "bg-accent" }: { colorClassName?: string }) {
   return (
     <span className="inline-flex gap-0.5">
@@ -240,12 +301,12 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValue, setFilterValue] = useState<FilterValue>("all");
   const [now, setNow] = useState(() => Date.now());
-  // TEMPORARY DEBUG: captured client-side the moment this search started -
-  // persisted per sessionId so a page refresh restores the real start
-  // instead of resetting it to the moment of the reload.
+  // Captured client-side the moment this search started - persisted per
+  // sessionId so a page refresh restores the real start instead of
+  // resetting it to the moment of the reload.
   const [searchStartedAt] = useState(() => {
     if (typeof window === "undefined") return Date.now();
-    const key = `jobmetrics:debug:${sessionId}:startedAt`;
+    const key = `jobmetrics:pipeline:${sessionId}:startedAt`;
     const stored = sessionStorage.getItem(key);
     if (stored) return Number(stored);
     const now = Date.now();
@@ -261,9 +322,9 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
 
   const searchDone = jobCount > 0 && results.length >= jobCount;
 
-  // TEMPORARY DEBUG: re-render every second so the debug panel's timers
-  // stay live - stops once every job is back so "total elapsed" doesn't
-  // keep climbing to a meaningless number while the tab just sits open.
+  // Re-render every second so the pipeline's elapsed-time readout stays
+  // live - stops once every job is back so it doesn't keep climbing to a
+  // meaningless number while the tab just sits open afterward.
   useEffect(() => {
     if (searchDone) return undefined;
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -283,42 +344,18 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
   const page = Math.min(currentPage, totalPages);
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // TEMPORARY DEBUG: a timeline of every stage this search has gone
-  // through, each entry's duration measured to the NEXT one (or to "now",
-  // live, for whichever stage is still ongoing) - not just the last status
-  // received, so nothing is hidden while waiting on the next event.
+  // A timeline of every real stage this search has gone through, each
+  // entry's duration measured to the next one (or to "now", live, for
+  // whichever stage is still ongoing).
   const timeline = [
-    { label: "Search started", at: searchStartedAt },
+    { label: "Search submitted", at: searchStartedAt },
     ...statusLog.map((s) => ({ label: s.text, at: s.at })),
-    ...(firstResultAt !== null ? [{ label: "First result received", at: firstResultAt }] : [])
+    ...(firstResultAt !== null ? [{ label: "First match streamed to your browser", at: firstResultAt }] : [])
   ];
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
-      <div className="mb-4 rounded-lg border border-dashed border-warning/50 bg-warning/5 p-3 font-mono text-xs text-muted">
-        <p className="mb-1.5 font-semibold text-warning">DEBUG (temporary)</p>
-        <p>sessionId: {sessionId}</p>
-        <p>WS connection: {status}</p>
-        <p className="mt-1.5 text-warning">
-          total elapsed: {Math.max(0, Math.round((now - searchStartedAt) / 1000))}s
-        </p>
-        {timeline.map((entry, i) => {
-          const nextAt = timeline[i + 1]?.at ?? now;
-          const durationS = Math.max(0, Math.round((nextAt - entry.at) / 1000));
-          const ongoing = i === timeline.length - 1;
-          return (
-            <p key={`${entry.label}-${entry.at}`}>
-              [{i}] {entry.label} — {durationS}s{ongoing ? " (ongoing)" : ""}
-            </p>
-          );
-        })}
-        <p className="mt-1.5">
-          results: {results.length} received / {revealedCount} revealed / {jobCount} expected
-        </p>
-        <p>
-          filter: {filterValue} -&gt; {filtered.length} matching / page {page} of {totalPages}
-        </p>
-      </div>
+      <LivePipeline timeline={timeline} now={now} isComplete={searchDone} />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">

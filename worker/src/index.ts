@@ -11,22 +11,22 @@ async function main() {
   await connectQueue();
   console.log(`Connected to RabbitMQ, consuming "${config.queueName}"`);
 
+  // Each broadcastStatus call here mirrors a console.log at the same point,
+  // surfaced live in the UI as a "Live pipeline" feature - lets anyone
+  // watching see the RabbitMQ producer/consumer handoff and the LLM call
+  // happen in real time, instead of a plain loading spinner.
   await consumeJobs(async (sessionMessage) => {
-    // TEMPORARY DEBUG: each of these mirrors a console.log in this same
-    // handler/queue.ts, broadcast live to the debug panel too - so the full
-    // dequeue -> Gemini -> save/broadcast timeline is visible on-screen
-    // without needing pm2 logs at all.
-    broadcastStatus(sessionMessage.sessionId, "Calling Gemini...");
+    broadcastStatus(sessionMessage.sessionId, "Scoring matches with the Gemini API...");
     console.log(`[${new Date().toISOString()}] Calling Gemini for session ${sessionMessage.sessionId}`);
     const results = await scoreAllJobs(sessionMessage);
     console.log(`[${new Date().toISOString()}] Gemini returned for session ${sessionMessage.sessionId}`);
-    broadcastStatus(sessionMessage.sessionId, "Gemini responded - saving results...");
+    broadcastStatus(sessionMessage.sessionId, "Scores received - saving and streaming results...");
     for (const result of results) {
       await saveJobResult(result.sessionId, result.jobId, JSON.stringify(result));
       broadcastResult(result);
     }
     console.log(`[${new Date().toISOString()}] Done saving/broadcasting session ${sessionMessage.sessionId}`);
-    broadcastStatus(sessionMessage.sessionId, "Done saving/broadcasting results");
+    broadcastStatus(sessionMessage.sessionId, "All results delivered");
   });
 }
 
