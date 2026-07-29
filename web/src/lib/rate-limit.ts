@@ -2,6 +2,13 @@ import { getSql } from "./db";
 
 export const DAILY_SEARCH_LIMIT = 5;
 
+// The owner's own account is exempt from the daily cap - it exists to
+// protect the shared free-tier Gemini quota from random visitors, not to
+// slow down the person testing/demoing their own site.
+export function isOwner(email: string): boolean {
+  return !!process.env.OWNER_EMAIL && email === process.env.OWNER_EMAIL;
+}
+
 export type RateLimitDecision = {
   allowed: boolean;
   used: number;

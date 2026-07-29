@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth";
 import { getOrCreateUser } from "@/lib/db";
-import { checkRateLimit, incrementSearchCount } from "@/lib/rate-limit";
+import { checkRateLimit, incrementSearchCount, isOwner } from "@/lib/rate-limit";
 import { fetchJobPostings, JOB_SOURCE_REPOS, type JobSourceRepo, type JobPosting } from "@/lib/github-jobs";
 import { publishJobsForScoring } from "@/lib/queue";
 
@@ -43,8 +43,9 @@ export async function POST(request: Request) {
 
   const user = await getOrCreateUser(session.user.email, session.user.email.endsWith("@gmail.com") ? "google" : "github");
 
-  const decision = await checkRateLimit(user.id);
-  if (!decision.allowed) {
+  const ownerExempt = isOwner(session.user.email);
+  const decision = ownerExempt ? null : await checkRateLimit(user.id);
+  if (decision && !decision.allowed) {
     return NextResponse.json(
       { error: `Daily search limit reached (${decision.limit}/day). Try again tomorrow.` },
       { status: 429 }
@@ -80,7 +81,13 @@ export async function POST(request: Request) {
   }
 
   // Only counts against the daily limit once the search actually queued.
-  await incrementSearchCount(user.id);
+  if (!ownerExempt) {
+    await incrementSearchCount(user.id);
+  }
 
-  return NextResponse.json({ sessionId, jobCount: jobs.length, remaining: decision.remaining - 1 });
+  return NextResponse.json({
+    sessionId,
+    jobCount: jobs.length,
+    remaining: decision ? decision.remaining - 1 : null
+  });
 }
