@@ -4,12 +4,18 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { ResultsPanel } from "@/components/results-panel";
 import { SignInButton } from "@/components/sign-in-button";
+import { Dropdown } from "@/components/dropdown";
 
 const JOB_SOURCES: { id: string; label: string }[] = [
   { id: "frontendbr/vagas", label: "frontendbr/vagas" },
   { id: "backend-br/vagas", label: "backend-br/vagas" },
   { id: "react-brasil/vagas", label: "react-brasil/vagas" },
   { id: "DevOps-Brasil/Vagas", label: "DevOps-Brasil/Vagas" }
+];
+
+const SOURCE_OPTIONS = [
+  { value: "", label: "None - just paste a job below" },
+  ...JOB_SOURCES.map((source) => ({ value: source.id, label: source.label }))
 ];
 
 export default function Home() {
@@ -164,18 +170,7 @@ export default function Home() {
           </label>
 
           <h2 className="mb-3 mt-6 text-lg font-semibold">2. Job Source</h2>
-          <select
-            value={selectedSource}
-            onChange={(e) => setSelectedSource(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent"
-          >
-            <option value="">None - just paste a job below</option>
-            {JOB_SOURCES.map((source) => (
-              <option key={source.id} value={source.id}>
-                {source.label}
-              </option>
-            ))}
-          </select>
+          <Dropdown value={selectedSource} options={SOURCE_OPTIONS} onChange={setSelectedSource} />
 
           <h2 className="mb-2 mt-6 text-lg font-semibold">3. Or paste a specific job</h2>
           <textarea
