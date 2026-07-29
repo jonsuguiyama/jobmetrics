@@ -51,3 +51,18 @@ export function broadcastResult(result: JobResult): void {
 
   for (const socket of sockets) sendResult(socket, result);
 }
+
+// TEMPORARY DEBUG: lets the frontend show what the worker is doing right
+// now instead of the user having to check pm2 logs / RabbitMQ manually.
+// Not persisted anywhere (unlike job results), so a client that connects
+// after a given status was sent just won't see that one - fine for a
+// throwaway debug panel, not worth building real persistence for.
+export function broadcastStatus(sessionId: string, statusText: string): void {
+  const sockets = clientsBySession.get(sessionId);
+  if (!sockets) return;
+
+  const payload = JSON.stringify({ type: "status", status: statusText, at: Date.now() });
+  for (const socket of sockets) {
+    if (socket.readyState === socket.OPEN) socket.send(payload);
+  }
+}

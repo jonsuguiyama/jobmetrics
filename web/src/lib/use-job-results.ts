@@ -18,9 +18,15 @@ const RECONNECT_DELAY_MS = 1500;
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting";
 
+// TEMPORARY DEBUG: what the worker last reported doing for this session,
+// via worker/src/websocket.ts's broadcastStatus(). Not persisted, so a late
+// connection just won't see earlier ones - fine for a throwaway debug view.
+export type WorkerStatus = { text: string; at: number };
+
 export function useJobResults(sessionId: string | null) {
   const [results, setResults] = useState<JobResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
+  const [workerStatus, setWorkerStatus] = useState<WorkerStatus | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -42,15 +48,23 @@ export function useJobResults(sessionId: string | null) {
       };
 
       socket.onmessage = (event) => {
-        const data = JSON.parse(event.data) as { type: string; result: JobResult };
-        if (data.type === "job-result") {
+        const data = JSON.parse(event.data) as {
+          type: string;
+          result?: JobResult;
+          status?: string;
+          at?: number;
+        };
+        if (data.type === "job-result" && data.result) {
+          const result = data.result;
           // A reconnect replays everything already scored (see worker's
           // websocket.ts), so de-dupe by jobId instead of assuming every
           // message is new.
           setResults((prev) => {
-            if (prev.some((existing) => existing.jobId === data.result.jobId)) return prev;
-            return [...prev, data.result].sort((a, b) => b.score - a.score);
+            if (prev.some((existing) => existing.jobId === result.jobId)) return prev;
+            return [...prev, result].sort((a, b) => b.score - a.score);
           });
+        } else if (data.type === "status" && data.status) {
+          setWorkerStatus({ text: data.status, at: data.at ?? Date.now() });
         }
       };
 
@@ -77,5 +91,5 @@ export function useJobResults(sessionId: string | null) {
     };
   }, [sessionId]);
 
-  return { results, status };
+  return { results, status, workerStatus };
 }

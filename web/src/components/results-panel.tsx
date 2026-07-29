@@ -235,16 +235,24 @@ function Pagination({
 }
 
 export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCount: number }) {
-  const { results, status } = useJobResults(sessionId);
+  const { results, status, workerStatus } = useJobResults(sessionId);
   const [revealedCount, setRevealedCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValue, setFilterValue] = useState<FilterValue>("all");
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (revealedCount >= results.length) return undefined;
     const timer = setTimeout(() => setRevealedCount((count) => count + 1), REVEAL_INTERVAL_MS);
     return () => clearTimeout(timer);
   }, [revealedCount, results.length]);
+
+  // TEMPORARY DEBUG: re-render every second so the debug panel's "Xs ago"
+  // timestamps stay live even when nothing else changes.
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   function handleFilterChange(value: FilterValue) {
     setFilterValue(value);
@@ -261,6 +269,24 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
+      <div className="mb-4 rounded-lg border border-dashed border-warning/50 bg-warning/5 p-3 font-mono text-xs text-muted">
+        <p className="mb-1.5 font-semibold text-warning">DEBUG (temporary)</p>
+        <p>sessionId: {sessionId}</p>
+        <p>WS connection: {status}</p>
+        <p>
+          worker status:{" "}
+          {workerStatus
+            ? `"${workerStatus.text}" (${Math.max(0, Math.round((now - workerStatus.at) / 1000))}s ago)`
+            : "(none received yet)"}
+        </p>
+        <p>
+          results: {results.length} received / {revealedCount} revealed / {jobCount} expected
+        </p>
+        <p>
+          filter: {filterValue} -&gt; {filtered.length} matching / page {page} of {totalPages}
+        </p>
+      </div>
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
           Results {revealedCount > 0 && `(${revealedCount}/${jobCount})`}
