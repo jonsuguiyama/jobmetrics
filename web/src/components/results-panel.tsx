@@ -11,11 +11,56 @@ const REVEAL_INTERVAL_MS = 200;
 const PAGE_SIZE = 10;
 const JUMP_SIZE = 10;
 
+const TIERS = [
+  { id: "low", label: "Low", classes: "border-danger text-danger", activeClasses: "bg-danger/15" },
+  { id: "fair", label: "Fair", classes: "border-orange text-orange", activeClasses: "bg-orange/15" },
+  { id: "good", label: "Good", classes: "border-warning text-warning", activeClasses: "bg-warning/15" },
+  {
+    id: "excellent",
+    label: "Excellent",
+    classes: "border-accent text-accent",
+    activeClasses: "bg-accent/15"
+  }
+] as const;
+
+type TierId = (typeof TIERS)[number]["id"];
+
+function tierOf(score: number): TierId {
+  if (score > 69) return "excellent";
+  if (score > 55) return "good";
+  if (score > 40) return "fair";
+  return "low";
+}
+
 function scoreColorClasses(score: number): string {
-  if (score > 69) return "border-accent text-accent";
-  if (score > 55) return "border-warning text-warning";
-  if (score > 40) return "border-orange text-orange";
-  return "border-danger text-danger";
+  return TIERS.find((tier) => tier.id === tierOf(score))!.classes;
+}
+
+function ScoreFilter({
+  activeTiers,
+  onToggle
+}: {
+  activeTiers: Set<TierId>;
+  onToggle: (tier: TierId) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {TIERS.map((tier) => {
+        const active = activeTiers.has(tier.id);
+        return (
+          <button
+            key={tier.id}
+            onClick={() => onToggle(tier.id)}
+            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${tier.classes} ${
+              active ? tier.activeClasses : "opacity-50 hover:opacity-100"
+            }`}
+          >
+            {tier.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function LoadingDots({ colorClassName = "bg-accent" }: { colorClassName?: string }) {
@@ -124,6 +169,7 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
   const { results, status } = useJobResults(sessionId);
   const [revealedCount, setRevealedCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeTiers, setActiveTiers] = useState<Set<TierId>>(new Set());
 
   useEffect(() => {
     if (revealedCount >= results.length) return undefined;
@@ -131,17 +177,32 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
     return () => clearTimeout(timer);
   }, [revealedCount, results.length]);
 
+  function toggleTier(tier: TierId) {
+    setActiveTiers((prev) => {
+      const next = new Set(prev);
+      if (next.has(tier)) next.delete(tier);
+      else next.add(tier);
+      return next;
+    });
+    setCurrentPage(1);
+  }
+
   const revealed = results.slice(0, revealedCount);
   const scoring = revealedCount < jobCount;
-  const totalPages = Math.max(1, Math.ceil(revealed.length / PAGE_SIZE));
+  const filtered =
+    activeTiers.size === 0 ? revealed : revealed.filter((result) => activeTiers.has(tierOf(result.score)));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = Math.min(currentPage, totalPages);
-  const pageItems = revealed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
-      <h2 className="mb-4 text-lg font-semibold">
-        Results {revealedCount > 0 && `(${revealedCount}/${jobCount})`}
-      </h2>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">
+          Results {revealedCount > 0 && `(${revealedCount}/${jobCount})`}
+        </h2>
+        {revealedCount > 0 && <ScoreFilter activeTiers={activeTiers} onToggle={toggleTier} />}
+      </div>
 
       {status === "reconnecting" && (
         <p className="mb-4 flex items-center gap-1 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
@@ -171,6 +232,10 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
             <LoadingDots />
           </p>
         </div>
+      )}
+
+      {revealedCount > 0 && filtered.length === 0 && (
+        <p className="text-sm text-muted">No matches in the selected score range.</p>
       )}
 
       <ul className="flex flex-col gap-3">

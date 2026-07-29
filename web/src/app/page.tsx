@@ -144,7 +144,7 @@ export default function Home() {
           </button>
         </section>
       ) : (
-        <section className="rounded-xl border border-border bg-surface p-6">
+        <section className="animate-result-in rounded-xl border border-border bg-surface p-6">
           <h2 className="mb-4 text-lg font-semibold">1. Your resume</h2>
           <label
             onDragOver={(e) => {
