@@ -114,66 +114,89 @@ export default function Home() {
   if (isParsingResume) uploadLabel = "Reading your resume...";
   else if (resumeFileName) uploadLabel = `Loaded: ${resumeFileName}`;
 
+  const sourceLabel = JOB_SOURCES.find((source) => source.id === selectedSource)?.label;
+
   return (
     <div className="flex flex-col gap-8">
-      <section className="rounded-xl border border-border bg-surface p-6">
-        <h2 className="mb-4 text-lg font-semibold">1. Your resume</h2>
-        <label
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDraggingFile(true);
-          }}
-          onDragLeave={() => setIsDraggingFile(false)}
-          onDrop={handleDrop}
-          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-6 py-10 text-center transition-colors ${
-            isDraggingFile ? "border-accent bg-surface-2" : "border-border bg-surface-2 hover:border-accent"
-          }`}
-        >
-          <span className="text-sm text-muted">{uploadLabel}</span>
-          {!resumeFileName && !isParsingResume && (
-            <span className="text-xs text-muted/70">.pdf, .docx, or .txt</span>
-          )}
-          <input
-            type="file"
-            accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-            onChange={handleFileChange}
-            className="hidden"
+      {sessionId ? (
+        <section className="animate-result-in rounded-xl border border-border bg-surface p-4">
+          <p className="flex items-center gap-2 text-sm">
+            <span className="size-1.5 rounded-full bg-accent animate-pulse-glow" />
+            Loaded: {resumeFileName}
+          </p>
+          <p className="mt-1.5 flex items-center gap-2 text-sm text-muted">
+            <span className="size-1.5 rounded-full bg-accent animate-pulse-glow" />
+            {sourceLabel
+              ? `Looking for job postings in: ${sourceLabel}`
+              : "Matching against your pasted job"}
+          </p>
+          <button
+            onClick={() => setSessionId(null)}
+            className="mt-3 text-xs font-medium text-accent hover:underline"
+          >
+            Start a new search
+          </button>
+        </section>
+      ) : (
+        <section className="rounded-xl border border-border bg-surface p-6">
+          <h2 className="mb-4 text-lg font-semibold">1. Your resume</h2>
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDraggingFile(true);
+            }}
+            onDragLeave={() => setIsDraggingFile(false)}
+            onDrop={handleDrop}
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-6 py-10 text-center transition-colors ${
+              isDraggingFile ? "border-accent bg-surface-2" : "border-border bg-surface-2 hover:border-accent"
+            }`}
+          >
+            <span className="text-sm text-muted">{uploadLabel}</span>
+            {!resumeFileName && !isParsingResume && (
+              <span className="text-xs text-muted/70">.pdf, .docx, or .txt</span>
+            )}
+            <input
+              type="file"
+              accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </label>
+
+          <h2 className="mb-3 mt-6 text-lg font-semibold">2. Job Source</h2>
+          <select
+            value={selectedSource}
+            onChange={(e) => setSelectedSource(e.target.value)}
+            className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent"
+          >
+            <option value="">None - just paste a job below</option>
+            {JOB_SOURCES.map((source) => (
+              <option key={source.id} value={source.id}>
+                {source.label}
+              </option>
+            ))}
+          </select>
+
+          <h2 className="mb-2 mt-6 text-lg font-semibold">3. Or paste a specific job</h2>
+          <textarea
+            value={pastedJob}
+            onChange={(e) => setPastedJob(e.target.value)}
+            placeholder="Paste a job description here (optional)"
+            rows={4}
+            className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent"
           />
-        </label>
 
-        <h2 className="mb-3 mt-6 text-lg font-semibold">2. Job Source</h2>
-        <select
-          value={selectedSource}
-          onChange={(e) => setSelectedSource(e.target.value)}
-          className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent"
-        >
-          <option value="">None - just paste a job below</option>
-          {JOB_SOURCES.map((source) => (
-            <option key={source.id} value={source.id}>
-              {source.label}
-            </option>
-          ))}
-        </select>
+          {error && <p className="mt-4 text-sm text-danger">{error}</p>}
 
-        <h2 className="mb-2 mt-6 text-lg font-semibold">3. Or paste a specific job</h2>
-        <textarea
-          value={pastedJob}
-          onChange={(e) => setPastedJob(e.target.value)}
-          placeholder="Paste a job description here (optional)"
-          rows={4}
-          className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent"
-        />
-
-        {error && <p className="mt-4 text-sm text-danger">{error}</p>}
-
-        <button
-          onClick={handleSearch}
-          disabled={!canSearch || isSearching}
-          className="mt-6 w-full rounded-lg bg-accent py-3 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {isSearching ? "Starting search..." : "Find matches"}
-        </button>
-      </section>
+          <button
+            onClick={handleSearch}
+            disabled={!canSearch || isSearching}
+            className="mt-6 w-full rounded-lg bg-accent py-3 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isSearching ? "Starting search..." : "Find matches"}
+          </button>
+        </section>
+      )}
 
       {sessionId && <ResultsPanel key={sessionId} sessionId={sessionId} jobCount={jobCount} />}
     </div>
