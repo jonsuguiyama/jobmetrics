@@ -110,19 +110,34 @@ export function LiveDuration({ from, until }: { from: number; until: number | nu
 
   useEffect(() => {
     if (until !== null) return undefined;
-    const interval = setInterval(() => {
+
+    function tick(source: string) {
       const next = Date.now();
-      if (typeof document !== "undefined") {
-        console.log("[LiveDuration] tick", {
-          from,
-          next,
-          visibilityState: document.visibilityState,
-          hidden: document.hidden
-        });
-      }
+      console.log("[LiveDuration] tick", {
+        from,
+        next,
+        source,
+        visibilityState: document.visibilityState,
+        hidden: document.hidden
+      });
       setNow(next);
-    }, 1000);
-    return () => clearInterval(interval);
+    }
+
+    const interval = setInterval(() => tick("interval"), 1000);
+
+    // Chromium throttles setInterval on a hidden/occluded page down to as
+    // little as 1 tick/min (Page Lifecycle intensive throttling) - without
+    // this, the display only catches up whenever that next throttled tick
+    // happens to land, instead of the moment the tab is actually visible again.
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") tick("visibilitychange");
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [until, from]);
 
   const seconds = Math.max(0, Math.round(((until ?? now) - from) / 1000));
