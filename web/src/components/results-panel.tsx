@@ -12,18 +12,32 @@ const PAGE_SIZE = 10;
 const JUMP_SIZE = 10;
 
 const TIERS = [
-  { id: "low", label: "Low", classes: "border-danger text-danger", activeClasses: "bg-danger/15" },
-  { id: "fair", label: "Fair", classes: "border-orange text-orange", activeClasses: "bg-orange/15" },
-  { id: "good", label: "Good", classes: "border-warning text-warning", activeClasses: "bg-warning/15" },
+  { id: "low", label: "Low", textClass: "text-danger", borderClass: "border-danger", fillClass: "bg-danger" },
+  {
+    id: "fair",
+    label: "Fair",
+    textClass: "text-orange",
+    borderClass: "border-orange",
+    fillClass: "bg-orange"
+  },
+  {
+    id: "good",
+    label: "Good",
+    textClass: "text-warning",
+    borderClass: "border-warning",
+    fillClass: "bg-warning"
+  },
   {
     id: "excellent",
     label: "Excellent",
-    classes: "border-accent text-accent",
-    activeClasses: "bg-accent/15"
+    textClass: "text-accent",
+    borderClass: "border-accent",
+    fillClass: "bg-accent"
   }
 ] as const;
 
 type TierId = (typeof TIERS)[number]["id"];
+type FilterValue = "all" | TierId;
 
 function tierOf(score: number): TierId {
   if (score > 69) return "excellent";
@@ -33,26 +47,33 @@ function tierOf(score: number): TierId {
 }
 
 function scoreColorClasses(score: number): string {
-  return TIERS.find((tier) => tier.id === tierOf(score))!.classes;
+  const tier = TIERS.find((t) => t.id === tierOf(score))!;
+  return `${tier.borderClass} ${tier.textClass}`;
 }
 
-function ScoreFilter({
-  activeTiers,
-  onToggle
-}: {
-  activeTiers: Set<TierId>;
-  onToggle: (tier: TierId) => void;
-}) {
+function ScoreFilter({ value, onChange }: { value: FilterValue; onChange: (value: FilterValue) => void }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      <button
+        onClick={() => onChange("all")}
+        className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${
+          value === "all"
+            ? "border-muted bg-muted text-background"
+            : "border-border text-muted hover:border-muted"
+        }`}
+      >
+        All
+      </button>
       {TIERS.map((tier) => {
-        const active = activeTiers.has(tier.id);
+        const active = value === tier.id;
         return (
           <button
             key={tier.id}
-            onClick={() => onToggle(tier.id)}
-            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${tier.classes} ${
-              active ? tier.activeClasses : "opacity-50 hover:opacity-100"
+            onClick={() => onChange(tier.id)}
+            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${
+              active
+                ? `border-transparent ${tier.fillClass} text-background`
+                : `${tier.borderClass} ${tier.textClass} opacity-50 hover:opacity-100`
             }`}
           >
             {tier.label}
@@ -217,7 +238,7 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
   const { results, status } = useJobResults(sessionId);
   const [revealedCount, setRevealedCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeTiers, setActiveTiers] = useState<Set<TierId>>(new Set());
+  const [filterValue, setFilterValue] = useState<FilterValue>("all");
 
   useEffect(() => {
     if (revealedCount >= results.length) return undefined;
@@ -225,20 +246,15 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
     return () => clearTimeout(timer);
   }, [revealedCount, results.length]);
 
-  function toggleTier(tier: TierId) {
-    setActiveTiers((prev) => {
-      const next = new Set(prev);
-      if (next.has(tier)) next.delete(tier);
-      else next.add(tier);
-      return next;
-    });
+  function handleFilterChange(value: FilterValue) {
+    setFilterValue(value);
     setCurrentPage(1);
   }
 
   const revealed = results.slice(0, revealedCount);
   const scoring = revealedCount < jobCount;
   const filtered =
-    activeTiers.size === 0 ? revealed : revealed.filter((result) => activeTiers.has(tierOf(result.score)));
+    filterValue === "all" ? revealed : revealed.filter((result) => tierOf(result.score) === filterValue);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = Math.min(currentPage, totalPages);
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -249,7 +265,7 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
         <h2 className="text-lg font-semibold">
           Results {revealedCount > 0 && `(${revealedCount}/${jobCount})`}
         </h2>
-        {revealedCount > 0 && <ScoreFilter activeTiers={activeTiers} onToggle={toggleTier} />}
+        {revealedCount > 0 && <ScoreFilter value={filterValue} onChange={handleFilterChange} />}
       </div>
 
       {status === "reconnecting" && (
