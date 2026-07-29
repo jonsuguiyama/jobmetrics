@@ -9,6 +9,28 @@ import { throttle } from "./rate-limiter.js";
 // dated model version gets deprecated.
 const MODEL = "gemini-flash-lite-latest";
 
+// A hung call (no response, no error - seen in production) occupies one of
+// WORKER_CONCURRENCY's consumer slots forever, blocking every message
+// behind it indefinitely. Failing fast lets queue.ts's retry/nack logic
+// take over instead of the worker silently wedging.
+const GEMINI_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 // Created lazily (not at module load) so importing pure helpers like
 // toJobResult - e.g. from tests - doesn't require config/env vars to be set.
 let ai: GoogleGenAI | undefined;
@@ -96,14 +118,18 @@ export function toJobResult(sessionId: string, job: JobToScore, raw: unknown): J
 export async function scoreAllJobs(message: SessionScoreMessage): Promise<JobResult[]> {
   const response = await throttle(async () => {
     const client = await getClient();
-    return client.models.generateContent({
-      model: MODEL,
-      contents: buildPrompt(message.resumeText, message.jobs),
-      config: {
-        responseMimeType: "application/json",
-        responseSchema
-      }
-    });
+    return withTimeout(
+      client.models.generateContent({
+        model: MODEL,
+        contents: buildPrompt(message.resumeText, message.jobs),
+        config: {
+          responseMimeType: "application/json",
+          responseSchema
+        }
+      }),
+      GEMINI_TIMEOUT_MS,
+      `Gemini call timed out after ${GEMINI_TIMEOUT_MS}ms`
+    );
   });
 
   const parsedArray = JSON.parse(response.text ?? "[]") as unknown[];
