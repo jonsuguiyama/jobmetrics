@@ -1,19 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { toJobResult } from "./gemini.js";
-import type { JobMessage } from "./types.js";
+import type { JobToScore } from "./types.js";
 
-const baseMessage: JobMessage = {
-  sessionId: "session-1",
+const sessionId = "session-1";
+const job: JobToScore = {
   jobId: "job-1",
   jobTitle: "Full-stack developer",
   jobSource: "frontendbr/vagas",
-  jobText: "irrelevant for these tests",
-  resumeText: "irrelevant for these tests"
+  jobText: "irrelevant for these tests"
 };
 
 describe("toJobResult", () => {
   it("passes through a well-formed response", () => {
-    const result = toJobResult(baseMessage, {
+    const result = toJobResult(sessionId, job, {
       score: 82,
       matchedSkills: ["React", "TypeScript"],
       missingSkills: ["Kafka"],
@@ -27,22 +26,22 @@ describe("toJobResult", () => {
   });
 
   it("clamps a score above 100", () => {
-    const result = toJobResult(baseMessage, { score: 999 });
+    const result = toJobResult(sessionId, job, { score: 999 });
     expect(result.score).toBe(100);
   });
 
   it("clamps a negative score to 0", () => {
-    const result = toJobResult(baseMessage, { score: -50 });
+    const result = toJobResult(sessionId, job, { score: -50 });
     expect(result.score).toBe(0);
   });
 
   it("defaults to 0 when score is missing or not a number", () => {
-    expect(toJobResult(baseMessage, {}).score).toBe(0);
-    expect(toJobResult(baseMessage, { score: "a hundred" }).score).toBe(0);
+    expect(toJobResult(sessionId, job, {}).score).toBe(0);
+    expect(toJobResult(sessionId, job, { score: "a hundred" }).score).toBe(0);
   });
 
   it("ignores non-array matchedSkills/missingSkills instead of throwing", () => {
-    const result = toJobResult(baseMessage, {
+    const result = toJobResult(sessionId, job, {
       score: 50,
       matchedSkills: "not an array",
       missingSkills: null
@@ -53,7 +52,13 @@ describe("toJobResult", () => {
   });
 
   it("truncates an oversized summary", () => {
-    const result = toJobResult(baseMessage, { score: 50, summary: "a".repeat(1000) });
+    const result = toJobResult(sessionId, job, { score: 50, summary: "a".repeat(1000) });
     expect(result.summary.length).toBe(500);
+  });
+
+  it("marks the result as failed when the model dropped this job ID entirely", () => {
+    const result = toJobResult(sessionId, job, undefined);
+    expect(result.status).toBe("failed");
+    expect(result.score).toBe(0);
   });
 });

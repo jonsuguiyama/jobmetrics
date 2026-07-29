@@ -1,6 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useJobResults } from "@/lib/use-job-results";
+
+// Results now arrive from the worker in one burst (a single Gemini call
+// scores every job in the session), not spread out over the search. Revealing
+// them on a short timer instead of all at once keeps the "matches coming in"
+// feel without actually waiting on the network for it.
+const REVEAL_INTERVAL_MS = 200;
 
 function LoadingDots() {
   return (
@@ -18,15 +25,24 @@ function LoadingDots() {
 
 export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCount: number }) {
   const results = useJobResults(sessionId);
-  const scoring = results.length < jobCount;
+  const [revealedCount, setRevealedCount] = useState(0);
+
+  useEffect(() => {
+    if (revealedCount >= results.length) return undefined;
+    const timer = setTimeout(() => setRevealedCount((count) => count + 1), REVEAL_INTERVAL_MS);
+    return () => clearTimeout(timer);
+  }, [revealedCount, results.length]);
+
+  const revealed = results.slice(0, revealedCount);
+  const scoring = revealedCount < jobCount;
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
       <h2 className="mb-4 text-lg font-semibold">
-        Results {results.length > 0 && `(${results.length}/${jobCount})`}
+        Results {revealedCount > 0 && `(${revealedCount}/${jobCount})`}
       </h2>
 
-      {results.length === 0 && (
+      {revealedCount === 0 && (
         <p className="flex items-center gap-1 text-sm text-muted">
           Waiting for the first match to come in
           <LoadingDots />
@@ -38,23 +54,22 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
             <div
               className="h-full rounded-full bg-accent transition-all duration-500"
-              style={{ width: `${(results.length / jobCount) * 100}%` }}
+              style={{ width: `${(revealedCount / jobCount) * 100}%` }}
             />
           </div>
           <p className="mt-2 flex items-center gap-1 text-xs text-muted">
-            Scoring job {Math.min(results.length + 1, jobCount)} of {jobCount}
+            Scoring job {Math.min(revealedCount + 1, jobCount)} of {jobCount}
             <LoadingDots />
-            <span className="ml-1">
-              — the free Gemini tier limits how fast this can go, so this may take a minute or
-              two.
-            </span>
           </p>
         </div>
       )}
 
       <ul className="flex flex-col gap-3">
-        {results.map((result) => (
-          <li key={result.jobId} className="rounded-lg border border-border bg-surface-2 p-4">
+        {revealed.map((result) => (
+          <li
+            key={result.jobId}
+            className="animate-result-in rounded-lg border border-border bg-surface-2 p-4"
+          >
             <div className="mb-2 flex items-center justify-between gap-4">
               <span className="font-medium">{result.jobTitle}</span>
               <span className="rounded-full border border-accent px-2.5 py-0.5 text-xs font-semibold text-accent">

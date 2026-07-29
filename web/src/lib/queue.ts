@@ -26,13 +26,20 @@ async function getChannel(): Promise<Channel> {
   return channel;
 }
 
-export type JobMessage = {
-  sessionId: string;
+export type JobToScore = {
   jobId: string;
   jobTitle: string;
   jobSource: string;
   jobText: string;
+};
+
+// Must match worker/src/types.ts's SessionScoreMessage - one message per
+// search session, not per job, so the worker can score every job posting in
+// a single LLM call instead of one call per job.
+export type SessionScoreMessage = {
+  sessionId: string;
   resumeText: string;
+  jobs: JobToScore[];
 };
 
 export async function publishJobsForScoring(
@@ -42,16 +49,16 @@ export async function publishJobsForScoring(
 ): Promise<void> {
   const ch = await getChannel();
 
-  for (const job of jobs) {
-    const message: JobMessage = {
-      sessionId,
+  const message: SessionScoreMessage = {
+    sessionId,
+    resumeText,
+    jobs: jobs.map((job) => ({
       jobId: job.id,
       jobTitle: job.title,
       jobSource: job.repo,
-      jobText: job.body,
-      resumeText
-    };
+      jobText: job.body
+    }))
+  };
 
-    ch.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(message)), { persistent: true });
-  }
+  ch.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(message)), { persistent: true });
 }

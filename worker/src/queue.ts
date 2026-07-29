@@ -1,6 +1,6 @@
 import amqplib, { type ChannelModel, type Channel, type ConsumeMessage } from "amqplib";
 import { config } from "./config.js";
-import type { JobMessage } from "./types.js";
+import type { SessionScoreMessage } from "./types.js";
 
 const DEAD_LETTER_EXCHANGE = "jobs-dead-letter-exchange";
 const DEAD_LETTER_QUEUE = "jobs-dead-letter";
@@ -32,15 +32,17 @@ function getAttemptCount(message: ConsumeMessage): number {
   return xDeath?.[0]?.count ?? 0;
 }
 
-export async function consumeJobs(handler: (job: JobMessage) => Promise<void>): Promise<void> {
+export async function consumeJobs(
+  handler: (sessionMessage: SessionScoreMessage) => Promise<void>
+): Promise<void> {
   if (!channel) throw new Error("Queue channel not connected - call connectQueue() first");
 
   await channel.consume(config.queueName, async (message) => {
     if (!message) return;
 
     try {
-      const job = JSON.parse(message.content.toString()) as JobMessage;
-      await handler(job);
+      const sessionMessage = JSON.parse(message.content.toString()) as SessionScoreMessage;
+      await handler(sessionMessage);
       channel!.ack(message);
     } catch (error) {
       const attempts = getAttemptCount(message);
@@ -53,7 +55,7 @@ export async function consumeJobs(handler: (job: JobMessage) => Promise<void>): 
   });
 }
 
-export function publishJob(job: JobMessage): boolean {
+export function publishJob(job: SessionScoreMessage): boolean {
   if (!channel) throw new Error("Queue channel not connected - call connectQueue() first");
   return channel.sendToQueue(config.queueName, Buffer.from(JSON.stringify(job)), {
     persistent: true
