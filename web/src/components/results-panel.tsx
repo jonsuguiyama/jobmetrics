@@ -240,11 +240,18 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValue, setFilterValue] = useState<FilterValue>("all");
   const [now, setNow] = useState(() => Date.now());
-  // TEMPORARY DEBUG: captured client-side the moment this search started
-  // rendering, independent of any server message - so the total elapsed
-  // timer always counts from the real start, even if every worker status
-  // gets lost or delayed.
-  const [searchStartedAt] = useState(() => Date.now());
+  // TEMPORARY DEBUG: captured client-side the moment this search started -
+  // persisted per sessionId so a page refresh restores the real start
+  // instead of resetting it to the moment of the reload.
+  const [searchStartedAt] = useState(() => {
+    if (typeof window === "undefined") return Date.now();
+    const key = `jobmetrics:debug:${sessionId}:startedAt`;
+    const stored = sessionStorage.getItem(key);
+    if (stored) return Number(stored);
+    const now = Date.now();
+    sessionStorage.setItem(key, String(now));
+    return now;
+  });
 
   useEffect(() => {
     if (revealedCount >= results.length) return undefined;
@@ -252,12 +259,16 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
     return () => clearTimeout(timer);
   }, [revealedCount, results.length]);
 
+  const searchDone = jobCount > 0 && results.length >= jobCount;
+
   // TEMPORARY DEBUG: re-render every second so the debug panel's timers
-  // stay live even when nothing else changes.
+  // stay live - stops once every job is back so "total elapsed" doesn't
+  // keep climbing to a meaningless number while the tab just sits open.
   useEffect(() => {
+    if (searchDone) return undefined;
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [searchDone]);
 
   function handleFilterChange(value: FilterValue) {
     setFilterValue(value);
