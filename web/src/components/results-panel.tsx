@@ -149,8 +149,13 @@ function LivePipeline({
       </p>
       <ul className="flex flex-col gap-2">
         {timeline.map((entry, i) => {
-          const isCurrent = i === timeline.length - 1 && !isComplete;
-          const nextAt = timeline[i + 1]?.at ?? null;
+          const isLastEntry = i === timeline.length - 1;
+          const isCurrent = isLastEntry && !isComplete;
+          // A step in the middle measures its duration to the next step.
+          // The very last step has no "next" to measure to - once the
+          // search is complete there's nothing left to count, so it's
+          // fixed at its own timestamp (0s) instead of ticking forever.
+          const nextAt = i + 1 < timeline.length ? timeline[i + 1].at : entry.at;
           return (
             <li key={`${entry.label}-${entry.at}`} className="flex items-center gap-2 text-sm">
               <span className="flex size-4 shrink-0 items-center justify-center">
