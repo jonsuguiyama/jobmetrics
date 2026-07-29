@@ -4,6 +4,7 @@ import { useJobResults } from "@/lib/use-job-results";
 
 export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCount: number }) {
   const results = useJobResults(sessionId);
+  const scoring = results.length < jobCount;
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6">
@@ -16,6 +17,22 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
           <span className="size-2 rounded-full bg-accent animate-pulse-glow" />
           Waiting for the first match to come in...
         </p>
+      )}
+
+      {scoring && (
+        <div className="mb-4">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-500"
+              style={{ width: `${(results.length / jobCount) * 100}%` }}
+            />
+          </div>
+          <p className="mt-2 flex items-center gap-2 text-xs text-muted">
+            <span className="size-1.5 rounded-full bg-accent animate-pulse-glow" />
+            Scoring job {Math.min(results.length + 1, jobCount)} of {jobCount} — the free Gemini
+            tier limits how fast this can go, so this may take a minute or two.
+          </p>
+        </div>
       )}
 
       <ul className="flex flex-col gap-3">
