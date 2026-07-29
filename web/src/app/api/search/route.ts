@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth";
 import { getOrCreateUser } from "@/lib/db";
-import { checkAndIncrementRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, incrementSearchCount } from "@/lib/rate-limit";
 import { fetchJobPostings, JOB_SOURCE_REPOS, type JobSourceRepo, type JobPosting } from "@/lib/github-jobs";
 import { publishJobsForScoring } from "@/lib/queue";
 
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   const user = await getOrCreateUser(session.user.email, session.user.email.endsWith("@gmail.com") ? "google" : "github");
 
-  const decision = await checkAndIncrementRateLimit(user.id);
+  const decision = await checkRateLimit(user.id);
   if (!decision.allowed) {
     return NextResponse.json(
       { error: `Daily search limit reached (${decision.limit}/day). Try again tomorrow.` },
@@ -72,7 +72,15 @@ export async function POST(request: Request) {
   }
 
   const sessionId = randomUUID();
-  await publishJobsForScoring(sessionId, resumeText, jobs);
 
-  return NextResponse.json({ sessionId, jobCount: jobs.length, remaining: decision.remaining });
+  try {
+    await publishJobsForScoring(sessionId, resumeText, jobs);
+  } catch {
+    return NextResponse.json({ error: "Failed to queue jobs for scoring - try again" }, { status: 502 });
+  }
+
+  // Only counts against the daily limit once the search actually queued.
+  await incrementSearchCount(user.id);
+
+  return NextResponse.json({ sessionId, jobCount: jobs.length, remaining: decision.remaining - 1 });
 }
