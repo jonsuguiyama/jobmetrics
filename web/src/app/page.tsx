@@ -172,14 +172,18 @@ export default function Home() {
           <h2 className="mb-3 mt-6 text-lg font-semibold">2. Job Source</h2>
           <Dropdown value={selectedSource} options={SOURCE_OPTIONS} onChange={setSelectedSource} />
 
-          <h2 className="mb-2 mt-6 text-lg font-semibold">3. Or paste a specific job</h2>
-          <textarea
-            value={pastedJob}
-            onChange={(e) => setPastedJob(e.target.value)}
-            placeholder="Paste a job description here (optional)"
-            rows={4}
-            className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent"
-          />
+          {selectedSource === "" && (
+            <>
+              <h2 className="mb-2 mt-6 text-lg font-semibold">3. Paste a job description below</h2>
+              <textarea
+                value={pastedJob}
+                onChange={(e) => setPastedJob(e.target.value)}
+                placeholder="Paste a job description here"
+                rows={4}
+                className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent"
+              />
+            </>
+          )}
 
           {error && <p className="mt-4 text-sm text-danger">{error}</p>}
 
