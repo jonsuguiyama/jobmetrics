@@ -2,6 +2,20 @@
 
 import { useJobResults } from "@/lib/use-job-results";
 
+function LoadingDots() {
+  return (
+    <span className="inline-flex gap-0.5">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="size-1 rounded-full bg-accent animate-loading-dot"
+          style={{ animationDelay: `${i * 0.2}s` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCount: number }) {
   const results = useJobResults(sessionId);
   const scoring = results.length < jobCount;
@@ -13,9 +27,9 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
       </h2>
 
       {results.length === 0 && (
-        <p className="flex items-center gap-2 text-sm text-muted">
-          <span className="size-2 rounded-full bg-accent animate-pulse-glow" />
-          Waiting for the first match to come in...
+        <p className="flex items-center gap-1 text-sm text-muted">
+          Waiting for the first match to come in
+          <LoadingDots />
         </p>
       )}
 
@@ -27,10 +41,13 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
               style={{ width: `${(results.length / jobCount) * 100}%` }}
             />
           </div>
-          <p className="mt-2 flex items-center gap-2 text-xs text-muted">
-            <span className="size-1.5 rounded-full bg-accent animate-pulse-glow" />
-            Scoring job {Math.min(results.length + 1, jobCount)} of {jobCount} — the free Gemini
-            tier limits how fast this can go, so this may take a minute or two.
+          <p className="mt-2 flex items-center gap-1 text-xs text-muted">
+            Scoring job {Math.min(results.length + 1, jobCount)} of {jobCount}
+            <LoadingDots />
+            <span className="ml-1">
+              — the free Gemini tier limits how fast this can go, so this may take a minute or
+              two.
+            </span>
           </p>
         </div>
       )}
@@ -41,7 +58,7 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
             <div className="mb-2 flex items-center justify-between gap-4">
               <span className="font-medium">{result.jobTitle}</span>
               <span className="rounded-full border border-accent px-2.5 py-0.5 text-xs font-semibold text-accent">
-                {result.score}%
+                {result.score}% match
               </span>
             </div>
             <p className="mb-2 text-sm text-muted">{result.summary}</p>
