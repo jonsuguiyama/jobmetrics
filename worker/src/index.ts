@@ -13,12 +13,18 @@ async function main() {
 
   await consumeJobs(async (sessionMessage) => {
     broadcastStatus(sessionMessage.sessionId, "Worker picked up your search - calling Gemini...");
+    // TEMPORARY DEBUG: timestamps bracketing the actual Gemini call, so a
+    // post-hoc log check shows exactly how long that call took versus
+    // everything else (dequeue-to-here, save+broadcast after).
+    console.log(`[${new Date().toISOString()}] Calling Gemini for session ${sessionMessage.sessionId}`);
     const results = await scoreAllJobs(sessionMessage);
+    console.log(`[${new Date().toISOString()}] Gemini returned for session ${sessionMessage.sessionId}`);
     broadcastStatus(sessionMessage.sessionId, "Gemini responded - saving results...");
     for (const result of results) {
       await saveJobResult(result.sessionId, result.jobId, JSON.stringify(result));
       broadcastResult(result);
     }
+    console.log(`[${new Date().toISOString()}] Done saving/broadcasting session ${sessionMessage.sessionId}`);
   });
 }
 

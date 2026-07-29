@@ -42,6 +42,12 @@ export async function consumeJobs(
 
     try {
       const sessionMessage = JSON.parse(message.content.toString()) as SessionScoreMessage;
+      // TEMPORARY DEBUG: pins down exactly when RabbitMQ handed this message
+      // to the worker, so a single post-hoc log check can show whether a
+      // slow search was stuck waiting in the queue or inside the handler.
+      console.log(
+        `[${new Date().toISOString()}] Dequeued session ${sessionMessage.sessionId} (${sessionMessage.jobs.length} jobs)`
+      );
       await handler(sessionMessage);
       channel!.ack(message);
     } catch (error) {
