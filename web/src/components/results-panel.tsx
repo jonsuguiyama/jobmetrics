@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { flushSync } from "react-dom";
 import { useJobResults } from "@/lib/use-job-results";
 
 // Results now arrive from the worker in one burst (a single Gemini call
@@ -106,17 +105,12 @@ function CheckIcon() {
 // (renders once, no interval needed). Isolated on purpose: each duration
 // manages itself instead of the whole pipeline sharing one "now" clock that
 // every entry's math depended on getting right.
-function LiveDuration({ from, until }: { from: number; until: number | null }) {
+export function LiveDuration({ from, until }: { from: number; until: number | null }) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (until !== null) return undefined;
-    // A plain setState here visibly updated in the background but only
-    // painted once some unrelated state change (e.g. a new WebSocket
-    // message) forced a flush - React was batching/deferring this tick as
-    // low-priority since nothing else demanded it. flushSync forces every
-    // tick to actually paint immediately instead of queuing invisibly.
-    const interval = setInterval(() => flushSync(() => setNow(Date.now())), 1000);
+    const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, [until]);
 
@@ -151,10 +145,10 @@ function LivePipeline({
         {timeline.map((entry, i) => {
           const isLastEntry = i === timeline.length - 1;
           const isCurrent = isLastEntry && !isComplete;
-          // A step in the middle measures its duration to the next step.
-          // The very last step has no "next" to measure to - once the
-          // search is complete there's nothing left to count, so it's
-          // fixed at its own timestamp (0s) instead of ticking forever.
+          // The very last entry (once the search is complete) has nothing
+          // left to measure a duration against - it's just the final
+          // confirmation, no number needed next to it.
+          const showDuration = !(isLastEntry && isComplete);
           const nextAt = i + 1 < timeline.length ? timeline[i + 1].at : entry.at;
           return (
             <li key={`${entry.label}-${entry.at}`} className="flex items-center gap-2 text-sm">
@@ -167,7 +161,7 @@ function LivePipeline({
               </span>
               <span className={isCurrent ? "text-foreground" : "text-muted"}>{entry.label}</span>
               {isCurrent && <LoadingDots />}
-              <LiveDuration from={entry.at} until={isCurrent ? null : nextAt} />
+              {showDuration && <LiveDuration from={entry.at} until={isCurrent ? null : nextAt} />}
             </li>
           );
         })}
