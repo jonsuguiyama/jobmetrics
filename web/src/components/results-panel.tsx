@@ -9,6 +9,12 @@ import { useJobResults } from "@/lib/use-job-results";
 // feel without actually waiting on the network for it.
 const REVEAL_INTERVAL_MS = 200;
 
+function scoreColorClasses(score: number): string {
+  if (score >= 70) return "border-accent text-accent";
+  if (score >= 40) return "border-warning text-warning";
+  return "border-danger text-danger";
+}
+
 function LoadingDots() {
   return (
     <span className="inline-flex gap-0.5">
@@ -70,11 +76,13 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
             key={result.jobId}
             className="animate-result-in rounded-lg border border-border bg-surface-2 p-4"
           >
-            <div className="mb-2 flex items-center justify-between gap-4">
-              <span className="font-medium">{result.jobTitle}</span>
-              <span className="rounded-full border border-accent px-2.5 py-0.5 text-xs font-semibold text-accent">
+            <div className="mb-2 overflow-hidden">
+              <span
+                className={`float-right ml-3 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${scoreColorClasses(result.score)}`}
+              >
                 {result.score}% match
               </span>
+              <span className="font-medium">{result.jobTitle}</span>
             </div>
             <p className="mb-2 text-sm text-muted">{result.summary}</p>
             <div className="flex flex-wrap gap-1.5 text-xs">
@@ -89,6 +97,16 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
                 </span>
               ))}
             </div>
+            {result.jobUrl && (
+              <a
+                href={result.jobUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+              >
+                View posting &amp; apply →
+              </a>
+            )}
           </li>
         ))}
       </ul>

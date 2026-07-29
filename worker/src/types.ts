@@ -3,6 +3,7 @@ export type JobToScore = {
   jobTitle: string;
   jobSource: string;
   jobText: string;
+  jobUrl: string;
 };
 
 // One message per search session, not per job - every job posting for a
@@ -18,6 +19,7 @@ export type JobResult = {
   sessionId: string;
   jobId: string;
   jobTitle: string;
+  jobUrl: string;
   score: number;
   matchedSkills: string[];
   missingSkills: string[];

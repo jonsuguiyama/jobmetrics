@@ -7,7 +7,8 @@ const job: JobToScore = {
   jobId: "job-1",
   jobTitle: "Full-stack developer",
   jobSource: "frontendbr/vagas",
-  jobText: "irrelevant for these tests"
+  jobText: "irrelevant for these tests",
+  jobUrl: "https://github.com/frontendbr/vagas/issues/1"
 };
 
 describe("toJobResult", () => {

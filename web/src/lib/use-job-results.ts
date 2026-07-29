@@ -6,6 +6,7 @@ export type JobResult = {
   sessionId: string;
   jobId: string;
   jobTitle: string;
+  jobUrl: string;
   score: number;
   matchedSkills: string[];
   missingSkills: string[];

@@ -10,6 +10,7 @@
   --accent: #00ffa3;
   --accent-foreground: #04120c;
   --danger: #ff5c5c;
+  --warning: #ffb020;
   --radius: 0.75rem;
 }
 
@@ -23,6 +24,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-danger: var(--danger);
+  --color-warning: var(--warning);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --radius-lg: var(--radius);

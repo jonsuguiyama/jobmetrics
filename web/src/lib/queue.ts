@@ -31,6 +31,7 @@ export type JobToScore = {
   jobTitle: string;
   jobSource: string;
   jobText: string;
+  jobUrl: string;
 };
 
 // Must match worker/src/types.ts's SessionScoreMessage - one message per
@@ -56,7 +57,8 @@ export async function publishJobsForScoring(
       jobId: job.id,
       jobTitle: job.title,
       jobSource: job.repo,
-      jobText: job.body
+      jobText: job.body,
+      jobUrl: job.url
     }))
   };
 

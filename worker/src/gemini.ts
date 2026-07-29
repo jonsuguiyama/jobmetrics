@@ -84,6 +84,7 @@ export function toJobResult(sessionId: string, job: JobToScore, raw: unknown): J
     sessionId,
     jobId: job.jobId,
     jobTitle: job.jobTitle,
+    jobUrl: job.jobUrl,
     score,
     matchedSkills: Array.isArray(parsed?.matchedSkills) ? parsed!.matchedSkills.slice(0, 30) : [],
     missingSkills: Array.isArray(parsed?.missingSkills) ? parsed!.missingSkills.slice(0, 30) : [],
