@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { JobMessage, JobResult } from "./types.js";
+import { throttle } from "./rate-limiter.js";
 
 // Google retires/renames specific Gemini model versions over time (verified
 // firsthand: gemini-2.5-flash-lite is already 404ing for new API keys). The
@@ -78,14 +79,16 @@ export function toJobResult(message: JobMessage, raw: unknown): JobResult {
 }
 
 export async function scoreJobMatch(message: JobMessage): Promise<JobResult> {
-  const client = await getClient();
-  const response = await client.models.generateContent({
-    model: MODEL,
-    contents: buildPrompt(message.resumeText, message.jobText),
-    config: {
-      responseMimeType: "application/json",
-      responseSchema
-    }
+  const response = await throttle(async () => {
+    const client = await getClient();
+    return client.models.generateContent({
+      model: MODEL,
+      contents: buildPrompt(message.resumeText, message.jobText),
+      config: {
+        responseMimeType: "application/json",
+        responseSchema
+      }
+    });
   });
 
   const parsed = JSON.parse(response.text ?? "{}");
