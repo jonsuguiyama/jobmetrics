@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useJobResults } from "@/lib/use-job-results";
 
 // Results now arrive from the worker in one burst (a single Gemini call
@@ -74,6 +74,54 @@ function LoadingDots({ colorClassName = "bg-accent" }: { colorClassName?: string
         />
       ))}
     </span>
+  );
+}
+
+type LoadingStep = { text: string; durationMs: number };
+
+// A fake but truthful step-by-step sequence for the ~1-2 minute wait while
+// Gemini scores the batch - grounded in what the pipeline actually does
+// (fetch postings, queue them, call the model), plus a couple of count-up
+// steps using the real job count. Runs once through and holds on the last
+// step instead of looping, so it doesn't read as an obviously fake loop.
+function buildLoadingSteps(jobCount: number): LoadingStep[] {
+  const steps: LoadingStep[] = [{ text: "Fetching job postings...", durationMs: 1200 }];
+
+  for (let n = 1; n <= jobCount; n++) {
+    steps.push({ text: `${n} job${n === 1 ? "" : "s"} found`, durationMs: 120 });
+  }
+
+  steps.push(
+    { text: "Preparing your resume for comparison...", durationMs: 1000 },
+    { text: "Queuing jobs for scoring...", durationMs: 1000 },
+    { text: "Sending the batch to the AI model...", durationMs: 1300 }
+  );
+
+  for (let n = 1; n <= jobCount; n++) {
+    steps.push({ text: `Scoring ${n} job${n === 1 ? "" : "s"}...`, durationMs: 150 });
+  }
+
+  steps.push({ text: "This can take a minute or two - hang tight", durationMs: Number.POSITIVE_INFINITY });
+  return steps;
+}
+
+function LoadingSteps({ jobCount }: { jobCount: number }) {
+  const steps = useMemo(() => buildLoadingSteps(jobCount), [jobCount]);
+  const [stepIndex, setStepIndex] = useState(0);
+
+  useEffect(() => {
+    if (stepIndex >= steps.length - 1) return undefined;
+    const timer = setTimeout(() => setStepIndex((i) => i + 1), steps[stepIndex].durationMs);
+    return () => clearTimeout(timer);
+  }, [stepIndex, steps]);
+
+  return (
+    <p className="flex items-center gap-1 text-sm text-muted">
+      <span key={stepIndex} className="animate-step-in">
+        {steps[stepIndex].text}
+      </span>
+      <LoadingDots />
+    </p>
   );
 }
 
@@ -212,12 +260,7 @@ export function ResultsPanel({ sessionId, jobCount }: { sessionId: string; jobCo
         </p>
       )}
 
-      {revealedCount === 0 && (
-        <p className="flex items-center gap-1 text-sm text-muted">
-          Scoring {jobCount} job{jobCount === 1 ? "" : "s"}
-          <LoadingDots />
-        </p>
-      )}
+      {revealedCount === 0 && <LoadingSteps jobCount={jobCount} />}
 
       {scoring && revealedCount > 0 && (
         <div className="mb-4">
