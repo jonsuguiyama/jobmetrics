@@ -193,3 +193,7 @@ pipeline. Known limitation: a single very large batch of jobs (60+) in one
 search can make the batched Gemini call noticeably slower, since generation
 time doesn't scale linearly with job count - chunking that call is the next
 thing to revisit if it comes up again in practice.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
