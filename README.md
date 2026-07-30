@@ -1,6 +1,9 @@
 # jobmetrics
 
 [![CI](https://github.com/jonsuguiyama/jobmetrics/actions/workflows/ci.yml/badge.svg)](https://github.com/jonsuguiyama/jobmetrics/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/jonsuguiyama/jobmetrics/graph/badge.svg)](https://codecov.io/gh/jonsuguiyama/jobmetrics)
+[![Version](https://img.shields.io/github/package-json/v/jonsuguiyama/jobmetrics?filename=web%2Fpackage.json)](https://github.com/jonsuguiyama/jobmetrics/blob/main/web/package.json)
+[![License](https://img.shields.io/github/license/jonsuguiyama/jobmetrics)](https://github.com/jonsuguiyama/jobmetrics/blob/main/LICENSE)
 
 Upload your resume, search real developer job postings from Brazilian tech
 communities, and get a live-updating match score for each one, powered by an
