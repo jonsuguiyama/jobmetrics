@@ -61,13 +61,22 @@ export type SessionScoreMessage = {
   jobs: JobToScore[];
 };
 
+async function publishOnce(message: SessionScoreMessage): Promise<void> {
+  const ch = await getChannel();
+
+  ch.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(message)), { persistent: true });
+
+  // sendToQueue only buffers locally - without waiting for the broker's ack,
+  // a stale/dead connection would swallow the message with no error and the
+  // caller would think the job was queued when it never left this process.
+  await ch.waitForConfirms();
+}
+
 export async function publishJobsForScoring(
   sessionId: string,
   resumeText: string,
   jobs: JobPosting[]
 ): Promise<void> {
-  const ch = await getChannel();
-
   const message: SessionScoreMessage = {
     sessionId,
     resumeText,
@@ -80,10 +89,19 @@ export async function publishJobsForScoring(
     }))
   };
 
-  ch.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(message)), { persistent: true });
-
-  // sendToQueue only buffers locally - without waiting for the broker's ack,
-  // a stale/dead connection would swallow the message with no error and the
-  // caller would think the job was queued when it never left this process.
-  await ch.waitForConfirms();
+  try {
+    await publishOnce(message);
+  } catch (error) {
+    // The cached connection can be stale in a way this process hasn't been
+    // told about yet (e.g. a serverless instance waking up after sitting
+    // idle long enough for CloudAMQP to drop it) - the "close"/"error"
+    // handlers on the connection will eventually clear the cache, but not
+    // necessarily before this call already tried and failed on it. Discard
+    // it immediately and retry once on a guaranteed-fresh connection instead
+    // of surfacing a failure the caller would have to retry by hand.
+    console.error("First publish attempt failed, discarding connection and retrying once:", error);
+    connection = undefined;
+    channel = undefined;
+    await publishOnce(message);
+  }
 }
