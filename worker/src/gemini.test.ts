@@ -1,6 +1,23 @@
-import { describe, it, expect } from "vitest";
-import { toJobResult } from "./gemini.js";
-import type { JobToScore } from "./types.js";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { JobToScore, SessionScoreMessage } from "./types.js";
+
+vi.mock("./config.js", () => ({
+  config: { geminiApiKey: "test-key" }
+}));
+
+vi.mock("./rate-limiter.js", () => ({
+  throttle: (fn: () => Promise<unknown>) => fn()
+}));
+
+const generateContentMock = vi.fn();
+vi.mock("@google/genai", () => ({
+  GoogleGenAI: vi.fn().mockImplementation(function GoogleGenAI() {
+    return { models: { generateContent: generateContentMock } };
+  }),
+  Type: { ARRAY: "ARRAY", OBJECT: "OBJECT", STRING: "STRING", INTEGER: "INTEGER" }
+}));
+
+const { toJobResult, scoreAllJobs } = await import("./gemini.js");
 
 const sessionId = "session-1";
 const job: JobToScore = {
@@ -61,5 +78,75 @@ describe("toJobResult", () => {
     const result = toJobResult(sessionId, job, undefined);
     expect(result.status).toBe("failed");
     expect(result.score).toBe(0);
+  });
+});
+
+describe("scoreAllJobs", () => {
+  beforeEach(() => {
+    generateContentMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const message: SessionScoreMessage = {
+    sessionId: "session-1",
+    resumeText: "React, TypeScript, Node.js",
+    jobs: [
+      { jobId: "job-1", jobTitle: "Frontend dev", jobSource: "frontendbr/vagas", jobText: "React role", jobUrl: "u1" },
+      { jobId: "job-2", jobTitle: "Backend dev", jobSource: "backend-br/vagas", jobText: "Node role", jobUrl: "u2" }
+    ]
+  };
+
+  it("maps every job in the session to a scored result, matched by job ID", async () => {
+    generateContentMock.mockResolvedValue({
+      text: JSON.stringify([
+        { jobId: "job-2", score: 40, matchedSkills: ["Node.js"], missingSkills: [], summary: "ok" },
+        { jobId: "job-1", score: 90, matchedSkills: ["React"], missingSkills: [], summary: "great fit" }
+      ])
+    });
+
+    const results = await scoreAllJobs(message);
+
+    expect(results).toHaveLength(2);
+    expect(results.find((r) => r.jobId === "job-1")?.score).toBe(90);
+    expect(results.find((r) => r.jobId === "job-2")?.score).toBe(40);
+    expect(generateContentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gemini-flash-lite-latest",
+        contents: expect.stringContaining("React, TypeScript, Node.js")
+      })
+    );
+  });
+
+  it("marks a job as failed if the model's response never mentions its job ID", async () => {
+    generateContentMock.mockResolvedValue({
+      text: JSON.stringify([{ jobId: "job-1", score: 90, matchedSkills: [], missingSkills: [], summary: "" }])
+    });
+
+    const results = await scoreAllJobs(message);
+
+    expect(results.find((r) => r.jobId === "job-1")?.status).toBe("scored");
+    expect(results.find((r) => r.jobId === "job-2")?.status).toBe("failed");
+  });
+
+  it("treats a missing response body as an empty array instead of throwing", async () => {
+    generateContentMock.mockResolvedValue({ text: undefined });
+
+    const results = await scoreAllJobs(message);
+
+    expect(results).toHaveLength(2);
+    expect(results.every((r) => r.status === "failed")).toBe(true);
+  });
+
+  it("times out instead of hanging forever on a Gemini call with no response", async () => {
+    vi.useFakeTimers();
+    generateContentMock.mockReturnValue(new Promise(() => undefined));
+
+    const promise = scoreAllJobs(message);
+    const expectation = expect(promise).rejects.toThrow("Gemini call timed out after 45000ms");
+    await vi.advanceTimersByTimeAsync(45000);
+    await expectation;
   });
 });
