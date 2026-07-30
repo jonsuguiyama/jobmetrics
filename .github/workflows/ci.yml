@@ -22,7 +22,7 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm test -- --coverage
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: web/coverage/lcov.info
@@ -44,7 +44,7 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm test -- --coverage
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: worker/coverage/lcov.info
