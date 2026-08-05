@@ -110,3 +110,19 @@
 .animate-step-in {
   animation: step-in 0.15s ease-out both;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-glow,
+  .animate-loading-dot {
+    animation: none;
+  }
+
+  .animate-modal-backdrop,
+  .animate-modal-card,
+  .animate-result-in,
+  .animate-dropdown-in,
+  .animate-step-in {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}
