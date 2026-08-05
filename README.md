@@ -196,4 +196,4 @@ thing to revisit if it comes up again in practice.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT - see [LICENSE](./LICENSE).
