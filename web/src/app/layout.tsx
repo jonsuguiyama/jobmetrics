@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
@@ -16,9 +16,34 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const title = "jobmetrics - resume vs. job match score";
+const description = "Upload your resume, search real dev job postings, get a live match score.";
+
+const siteUrl =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
+  "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: "jobmetrics - resume vs. job match score",
-  description: "Upload your resume, search real dev job postings, get a live match score.",
+  metadataBase: new URL(siteUrl),
+  title,
+  description,
+  openGraph: {
+    title,
+    description,
+    siteName: "jobmetrics",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0d0b",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
