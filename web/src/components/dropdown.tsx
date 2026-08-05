@@ -43,7 +43,7 @@ export function Dropdown({
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex w-full items-center justify-between rounded-lg border border-border bg-surface-2 p-3 text-left text-sm outline-none transition-colors hover:border-accent focus:border-accent"
+        className="flex w-full items-center justify-between rounded-lg border border-border bg-surface-2 p-3 text-left text-sm transition-colors hover:border-accent focus:border-accent"
       >
         <span>{selected?.label}</span>
         <svg

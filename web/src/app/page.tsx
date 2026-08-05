@@ -180,7 +180,7 @@ export default function Home() {
                 onChange={(e) => setPastedJob(e.target.value)}
                 placeholder="Paste a job description here"
                 rows={4}
-                className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent"
+                className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm focus:border-accent"
               />
             </>
           )}
